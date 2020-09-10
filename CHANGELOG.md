@@ -3,6 +3,7 @@
 * Unreleased
     - Front end improvements:
         - Send text alerts for report updates to only-phone-verified users.
+        - Add options for user to set global notification preferences.
     - Bugfixes:
         - Fix non-JS form when all extra questions answered. #3248
         - Improve display of disabled fields in iOS.
