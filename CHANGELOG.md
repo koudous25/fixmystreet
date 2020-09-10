@@ -14,6 +14,7 @@
         - Add an extra zoom level to most map types. #3130
         - Improve new report form when using phone verification.
         - Send text alerts for report updates to only-phone-verified users.
+        - Add options for user to set global notification preferences.
     - Changes:
         - Mark user as active when sent an email alert.
     - Bugfixes:
