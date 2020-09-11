@@ -664,7 +664,7 @@ subtest "Test signature template is used from cobrand" => sub {
         MAPIT_URL => 'http://mapit.uk/',
         ALLOWED_COBRANDS => 'fixmystreet',
     }, sub {
-        FixMyStreet::DB->resultset('AlertType')->email_alerts();
+        FixMyStreet::Script::Alerts::send();
     };
 
     my $email = $mech->get_text_body_from_email;
@@ -681,7 +681,7 @@ subtest "Test signature template is used from cobrand" => sub {
         MAPIT_URL => 'http://mapit.uk/',
         ALLOWED_COBRANDS => 'fixmystreet',
     }, sub {
-        FixMyStreet::DB->resultset('AlertType')->email_alerts();
+        FixMyStreet::Script::Alerts::send();
     };
 
     $email = $mech->get_text_body_from_email;
@@ -754,7 +754,7 @@ for my $test (
         FixMyStreet::override_config {
             MAPIT_URL => 'http://mapit.uk/',
         }, sub {
-            FixMyStreet::DB->resultset('AlertType')->email_alerts();
+            FixMyStreet::Script::Alerts::send();
         };
         $mech->email_count_is(0);
 
@@ -762,7 +762,7 @@ for my $test (
         FixMyStreet::override_config {
             MAPIT_URL => 'http://mapit.uk/',
         }, sub {
-            FixMyStreet::DB->resultset('AlertType')->email_alerts();
+            FixMyStreet::Script::Alerts::send();
         };
         my $email = $mech->get_text_body_from_email;
         like $email, qr/Alert\s+test\s+for\s+non\s+public\s+reports/, 'alert contains public report';
@@ -797,7 +797,7 @@ subtest 'check new updates alerts for non public reports only go to report owner
     ok $alert_user1, "alert created";
 
     $mech->clear_emails_ok;
-    FixMyStreet::DB->resultset('AlertType')->email_alerts();
+    FixMyStreet::Script::Alerts::send();
     $mech->email_count_is(0);
 
     my $alert_user2 = FixMyStreet::DB->resultset('Alert')->create( {
@@ -809,13 +809,13 @@ subtest 'check new updates alerts for non public reports only go to report owner
     } );
     ok $alert_user2, "alert created";
 
-    FixMyStreet::DB->resultset('AlertType')->email_alerts();
+    FixMyStreet::Script::Alerts::send();
     my $email = $mech->get_text_body_from_email;
     like $email, qr/This is some more update text/, 'alert contains update text';
 
     $mech->clear_emails_ok;
     $report->update( { non_public => 0 } );
-    FixMyStreet::DB->resultset('AlertType')->email_alerts();
+    FixMyStreet::Script::Alerts::send();
     $email = $mech->get_text_body_from_email;
     like $email, qr/This is some more update text/, 'alert contains update text';
 
@@ -854,7 +854,7 @@ subtest 'check setting include dates in new updates cobrand option' => sub {
 
 
     $mech->clear_emails_ok;
-    FixMyStreet::DB->resultset('AlertType')->email_alerts();
+    FixMyStreet::Script::Alerts::send();
 
     my $date_in_alert = Utils::prettify_dt( $update->confirmed );
     my $email = $mech->get_text_body_from_email;
@@ -893,7 +893,7 @@ subtest 'check staff updates can include sanitized HTML' => sub {
     } );
     ok $alert_user1, "alert created";
 
-    FixMyStreet::DB->resultset('AlertType')->email_alerts();
+    FixMyStreet::Script::Alerts::send();
     my $email = $mech->get_email;
     my $plain = $mech->get_text_body_from_email($email);
     like $plain, qr/This is some update text with \*HTML\* and \*italics\*\.\r\n\r\n\* Even a list\r\n\r\n\* Which might work\r\n\r\n\* In the text \[https:\/\/www.fixmystreet.com\/\] part/, 'plain text part contains no HTML tags from staff update';
