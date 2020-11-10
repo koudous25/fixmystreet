@@ -210,6 +210,7 @@ sub dashboard_export_problems_add_columns {
     $csv->add_csv_columns(
         nearest_address => 'Nearest address',
         nearest_address_postcode => 'Nearest postcode',
+        attribute_data => "Attribute Data",
     );
 
     $csv->csv_extra_data(sub {
@@ -223,9 +224,11 @@ sub dashboard_export_problems_add_columns {
             $postcode = $report->geocode->{resourceSets}->[0]->{resources}->[0]->{address}->{postalCode};
         }
 
+        my $attribute_data = join "; ", map { $_->{name} . " = " . $_->{value} } @{ $report->get_extra_fields };
         return {
             nearest_address => $address,
             nearest_address_postcode => $postcode,
+            attribute_data => $attribute_data,
         };
     });
 }
