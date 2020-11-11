@@ -339,10 +339,7 @@ subtest 'Dashboard CSV extra columns' => sub {
             } ]
         },
         extra => {
-            _fields => [
-                { name => 'asset_resource_id', value => '12345', },
-                { name => 'traffic_information', value => 'none', },
-            ],
+            detailed_information => "Some detailed information",
         },
     });
 
@@ -355,8 +352,8 @@ subtest 'Dashboard CSV extra columns' => sub {
     }, sub {
         $mech->get_ok('/dashboard?export=1');
     };
-    $mech->content_contains('"Reported As","Nearest address","Nearest postcode","Attribute Data"');
-    $mech->content_contains('hackney,,"12 A Street, XX1 1SZ","XX1 1SZ","asset_resource_id = 12345; traffic_information = none"');
+    $mech->content_contains('"Reported As","Nearest address","Nearest postcode","Extra details"');
+    $mech->content_contains('hackney,,"12 A Street, XX1 1SZ","XX1 1SZ","Some detailed information"');
 };
 
 done_testing();
