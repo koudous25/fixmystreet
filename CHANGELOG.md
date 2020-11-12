@@ -13,6 +13,8 @@
         - Select matches for both filter category and group. #3110
         - Add an extra zoom level to most map types. #3130
         - Improve new report form when using phone verification.
+        - Send text alerts for report updates to only-phone-verified users.
+        - Add options for user to set global notification preferences.
     - Changes:
         - Mark user as active when sent an email alert.
     - Bugfixes:
@@ -64,6 +66,7 @@
     - UK:
         - Add option for recaptcha. #3050
         - Display search tips when location search returns no results. #3180
+        - Add ability to use GOV.UK Notify for text messaging.
 
 * v3.0.1 (6th May 2020)
     - New features:
