@@ -147,26 +147,34 @@ recognition of your staff role.
 
 <div class="admin-task" markdown="1" id="create-reports-behalf-user">
 
-### Creating reports on behalf of another user/ the council
+### Creating reports/ updates on behalf of another user/ the council
 
 <span class="admin-task__permissions">Permissions required: User must be marked
-as staff; one or more of ‘Create reports/updates on a user's behalf’, ‘Create
-reports/updates as anonymous user’ and ‘Create reports/updates as the council’
-must be ticked.</span>
+as staff; optionally, one or more of ‘Create reports/updates on a user's
+behalf’, ‘Create reports/updates as anonymous user’ and ‘Create reports/updates
+as the council’ can be ticked.</span>
 
-If a resident makes a report by phone or in person, staff members with the appropriate
-permissions can add it to FixMyStreet on their behalf. The report may bear the resident’s name; or
-it may be anonymous (i.e. the report-maker’s name is not published on the site, but will still be
-available in the admin interface). Alternatively, reports can be made as if from the council itself.
-In such cases, staff should make a new report just as a member of the public would — see ‘[The
+If a resident makes a report or update by phone or in person, staff members
+with the appropriate permissions can add it to FixMyStreet on their behalf. The
+report will be anonymous on the site, but the resident’s name will still be
+available in the admin interface. Reports can also be made as if from the
+council.
+
+Staff should make a new report just as a member of the public would — see ‘[The
 citizen’s experience](/pro-manual/citizens-experience/)'. Those with the appropriate permissions will see a dropdown box in
-the report-making interface, labeled ‘Report As’. Select ‘the council’, ‘yourself’, ‘anonymous’ or
+the report-making interface, labeled ‘Report As’. Select either the council, ‘yourself’, ‘anonymous’ or
 ‘another user’.
 
 If a user has the ‘Default to creating reports/update as the council’
 permission then the dropdown will default to reporting as the council.
 Staff with the ’Markup problem details’ permission will also default to
 reporting as the council.
+
+When a staff member makes an update on the site, it will not be publicly
+displayed with the staff member’s name, but the name of the body to which the
+user is attached. Staff members with the ‘See user detail for reports created
+as the council’ permission will be able to see the staff user’s name on the
+report or update, but other staff and the public will not.
 
 </div>
 
@@ -520,6 +528,20 @@ maintenance) to a staff user by editing the user and checking the relevant categ
 staff user, when logged in, will then only see reports within those categories. This is useful where a
 staff user only deals with reports of a specific type.
 
+#### Removing staff status from accounts
+
+To remove the staff status from an account visit the user page and
+uncheck the ‘staff’ checkbox. To prevent a user from logging in uncheck
+the ‘email verified’ checkbox.
+
+You can do this in bulk on the Users screen by selecting the checkbox
+next to the user's name on the users page, selecting the ‘Remove staff
+permission’ checkbox and clicking submit.
+
+Note that if a user has access to the email address associated with an
+account they can re-enable their account, but will not have staff
+permissions.
+
 #### Removing accounts
 
 To remove an account, the Administrator-level member of staff should make contact with
@@ -824,6 +846,19 @@ you give e.g. estimated timescales or other useful information up front.
 Click on ‘Templates’ in the admin menu. You will see a table of existing templates. Click on ‘Edit’
 beside the status you wish to change. You may alter any of the fields as described in the section
 above, ‘Creating a template’. Additionally you can delete the template from this page.
+
+
+#### HTML content in templates
+
+HTML tags are permitted in response templates, which makes it possible to include
+hyperlinks or rich text formatting in the updates which are added to reports.
+
+Be aware that response templates are emailed to users as well as being shown on
+the site, so it's best to keep any HTML formatting quite light-touch due to the
+quirks of email clients' rendering of HTML message.
+
+Refer to the section ["HTML Content in notices"](#html-content-in-notices) above for details of
+what tags and attributes are allowed.
 
 </div>
 

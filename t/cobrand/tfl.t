@@ -425,6 +425,7 @@ subtest 'Dashboard CSV extra columns' => sub {
     $mech->get_ok('/dashboard?export=1&category=Bus+stops');
     $mech->content_contains('Category,Subcategory');
     $mech->content_contains('Query,Borough');
+    $mech->content_contains(',Acknowledged,"Action scheduled",Fixed');
     $mech->content_contains(',"Safety critical","Delivered to","Closure email at","Reassigned at","Reassigned by","Is the pole leaning?"');
     $mech->content_contains('"Bus things","Bus stops"');
     $mech->content_contains('"BR1 3UH",Bromley,');
@@ -442,10 +443,17 @@ subtest 'Dashboard CSV extra columns' => sub {
         admin_user => $staffuser->name,
         user => $staffuser,
     });
+    FixMyStreet::DB->resultset('Comment')->create({
+        problem => $report, user => $report->user, anonymous => 't', text => 'Update text',
+        problem_state => 'action scheduled', state => 'confirmed', mark_fixed => 0,
+        confirmed => $dt,
+    });
     $mech->get_ok('/dashboard?export=1');
     $mech->content_contains('Query,Borough');
+    $mech->content_contains(',Acknowledged,"Action scheduled",Fixed');
     $mech->content_contains(',"Safety critical","Delivered to","Closure email at","Reassigned at","Reassigned by"');
     $mech->content_contains('(anonymous ' . $report->id . ')');
+    $mech->content_contains($dt . ',,,confirmed,51.4021');
     $mech->content_contains(',,,yes,busstops@example.com,,' . $dt . ',"Council User"');
 };
 
@@ -454,7 +462,8 @@ subtest 'Inspect form state choices' => sub {
     my $id = $report->id;
     $mech->get_ok("/report/$id");
     $mech->content_lacks('for triage');
-    $mech->content_lacks('action scheduled');
+    $mech->content_lacks('planned');
+    $mech->content_lacks('investigating');
 };
 
 subtest "change category, report resent to new location" => sub {
@@ -642,12 +651,23 @@ subtest 'TfL admin allows inspectors to be assigned to borough areas' => sub {
 
     $mech->submit_form_ok( { with_fields => {
         area_ids => [2482],
+        'contacts[' . $contact1->id . ']' => 1,
+        'contacts[' . $contact2->id . ']' => 1,
+        assigned_categories_only => 1,
     } } );
 
     $staffuser->discard_changes;
     is_deeply $staffuser->area_ids, [2482], "User assigned to Bromley LBO area";
 
     $staffuser->update({ area_ids => undef}); # so login below doesn't break
+};
+
+subtest 'Check TfL assigned only sees only their categories in filter' => sub {
+    $mech->log_in_ok($staffuser->email);
+    $mech->get_ok('/around?pc=BR1+3UH');
+    $mech->content_contains('Bus stops');
+    $mech->content_lacks('Pothole');
+    $staffuser->unset_extra_metadata('categories'); # so login below doesn't break
 };
 
 my $report = FixMyStreet::DB->resultset("Problem")->find({ title => 'Test Report 1'});

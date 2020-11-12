@@ -14,6 +14,11 @@
   text-indent: -999999px;
   z-index:2;
 }
+body.waste #site-logo {
+  width: 129px;
+  background: none;
+  text-indent: 0;
+}
 
 #nav-link {
   top: 7px;
@@ -72,6 +77,15 @@ a:hover {
 
 a:active {
   color: $link-visited-color;
+}
+
+// Want main text links to be bold
+.content a {
+    font-weight: bold;
+}
+// Except in list items
+.item-list a {
+    font-weight: normal;
 }
 
 // The map page header looks a bit high for some reason
@@ -431,6 +445,87 @@ body.mappage {
           max-width: 36px;
         }
       }
+    }
+  }
+}
+
+@import "../sass/waste";
+
+// Waste style overrides
+.waste {
+  [class^="govuk-heading-"],
+  .govuk-fieldset__heading {
+    font-family: $heading-font;
+    color: darken($bromley_blue, 10%);
+  }
+
+  .govuk-heading-xl {
+    font-size: 2.2em;
+    margin-bottom: 1em;
+  }
+
+  .govuk-heading-l {
+    font-size: 1.4375em;
+  }
+
+  .govuk-heading-m {
+    font-size: 1.125em;
+  }
+
+  .govuk-summary-list {
+    border-top-color: $bromley_blue;
+  }
+
+  .govuk-button {
+    background-color: $bromley_green;
+    box-shadow: 0 2px 0 darken($bromley_green, 10%);
+    &:hover {
+      //don't override focus as gov.uk is good at that
+      background-color: darken($bromley_green, 10%);
+    }
+  }
+
+  .govuk-button--secondary {
+    background-color: $base_bg;
+    box-shadow: 0 2px 0 darken($base_bg, 10%);
+    &:hover {
+      background-color: darken($base_bg, 5%);
+      box-shadow: 0 2px 0 darken($base_bg, 15%);
+    }
+  }
+}
+
+.bromley-waste-credits {
+  margin-top: 6em;
+  margin-bottom: 1em;
+
+  p {
+    font-size: 0.875em;
+    color: #666;
+    margin-bottom: 0;
+  }
+
+  a {
+    display: inline-block;
+    height: 0;
+    padding-top: 40px;
+    overflow: hidden;
+    margin-right: 1.5em;
+    margin-top: 0.5em;
+
+    &[href*="veolia"] {
+      width: 160px;
+      background: transparent none 0 0 no-repeat;
+      @include svg-background-image('/cobrands/bromley/images/logo-veolia');
+      background-size: 160px 40px;
+    }
+
+    &[href*="societyworks"] {
+      width: 193px;
+      background: transparent none 0 0 no-repeat;
+      @include svg-background-image('/cobrands/bromley/images/logo-societyworks');
+      background-size: 193px 40px;
+      vertical-align: -4px;
     }
   }
 }

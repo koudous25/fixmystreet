@@ -117,6 +117,35 @@ sub categories_restriction {
     return $rs->search( { category => { -not_in => $self->_tfl_no_resend_categories } } );
 }
 
+sub munge_reports_category_list {
+    my ($self, $categories) = @_;
+    my $c = $self->{c};
+    return unless $c->user_exists && $c->user->from_body;
+
+    my $assigned_categories_only = $c->user->get_extra_metadata('assigned_categories_only');
+    my %user_categories = map { $_ => 1 } @{$c->user->categories};
+
+    @$categories = grep {
+        my $assigned_users_only = $_->get_extra_metadata('assigned_users_only');
+        $user_categories{$_->category} || (!$assigned_categories_only && !$assigned_users_only);
+    } @$categories;
+}
+
+sub munge_around_filter_category_list {
+    my $self = shift;
+    my $c = $self->{c};
+    # This function is called by around and its ajax call, we only care about the actual one
+    return unless $c->stash->{filter_categories};
+    # This hook is called after category groupings, so we'll
+    # need to see if it's changed and regenerate them if so
+    my $num_categories = scalar @{$c->stash->{filter_categories}};
+    $self->munge_reports_category_list($c->stash->{filter_categories});
+    my $num_categories_after = scalar @{$c->stash->{filter_categories}};
+    if ($num_categories != $num_categories_after) {
+        $c->forward('/report/stash_category_groups', [ $c->stash->{filter_categories} ]);
+    }
+}
+
 sub admin_user_domain { 'tfl.gov.uk' }
 
 sub allow_anonymous_reports { 'button' }
@@ -209,7 +238,7 @@ sub around_nearby_filter {
 
 sub state_groups_inspect {
     my $rs = FixMyStreet::DB->resultset("State");
-    my @open = grep { $_ !~ /^(planned|action scheduled|for triage)$/ } FixMyStreet::DB::Result::Problem->open_states;
+    my @open = grep { $_ !~ /^(planned|investigating|for triage)$/ } FixMyStreet::DB::Result::Problem->open_states;
     my @closed = grep { $_ ne 'closed' } FixMyStreet::DB::Result::Problem->closed_states;
     [
         [ $rs->display('confirmed'), \@open ],
@@ -254,6 +283,7 @@ sub dashboard_export_problems_add_columns {
         reassigned_at => "Reassigned at",
         reassigned_by => "Reassigned by",
     );
+    $csv->splice_csv_column('fixed', action_scheduled => 'Action scheduled');
 
     if ($csv->category) {
         my @contacts = $csv->body->contacts->search(undef, { order_by => [ 'category' ] } )->all;

@@ -780,7 +780,11 @@ alphabetical order of name.
 
 sub response_priorities {
     my $self = shift;
-    return $self->result_source->schema->resultset('ResponsePriority')->for_bodies($self->bodies_str_ids, $self->category);
+    my $rs = $self->result_source->schema->resultset('ResponsePriority')->for_bodies($self->bodies_str_ids, $self->category);
+    $rs->search([
+        'me.deleted' => 0,
+        'me.id' => $self->response_priority_id,
+    ]);
 }
 
 =head2 defect_types
@@ -1121,17 +1125,6 @@ has duplicates => (
     },
 );
 
-has traffic_management_options => (
-    is => 'ro',
-    lazy => 1,
-    default => sub {
-        my $self = shift;
-        my $cobrand = $self->get_cobrand_logged;
-        $cobrand = $cobrand->call_hook(get_body_handler_for_problem => $self) || $cobrand;
-        return $cobrand->traffic_management_options;
-    },
-);
-
 has inspection_log_entry => (
     is => 'ro',
     lazy => 1,
@@ -1149,6 +1142,15 @@ has alerts => (
         return $self->result_source->schema->resultset('Alert')->search({
             alert_type => 'new_updates', parameter => $self->id
         });
+    },
+);
+
+has comment_count => (
+    is => 'ro',
+    lazy => 1,
+    default => sub {
+        my $self = shift;
+        $self->comments->count;
     },
 );
 

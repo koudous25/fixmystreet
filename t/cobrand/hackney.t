@@ -132,6 +132,9 @@ subtest "sends branded alert emails" => sub {
     FixMyStreet::override_config {
         MAPIT_URL => 'http://mapit.uk/',
         ALLOWED_COBRANDS => ['hackney','fixmystreet'],
+        COBRAND_FEATURES => {
+            do_not_reply_email => { hackney => 'fms-hackney-DO-NOT-REPLY@hackney-example.com' },
+        },
     }, sub {
         FixMyStreet::Script::Alerts::send();
     };
@@ -178,7 +181,7 @@ subtest "sends branded confirmation emails" => sub {
                     detail        => 'Test report details.',
                     photo1        => '',
                     name          => 'Joe Bloggs',
-                    username      => 'test-1@example.com',
+                    username_register => 'test-1@example.com',
                     category      => 'Roads',
                 }
             },

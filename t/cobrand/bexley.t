@@ -5,6 +5,10 @@ use FixMyStreet::TestMech;
 use FixMyStreet::Script::Reports;
 use Catalyst::Test 'FixMyStreet::App';
 
+# disable info logs for this test run
+FixMyStreet::App->log->disable('info');
+END { FixMyStreet::App->log->enable('info'); }
+
 set_fixed_time('2019-10-16T17:00:00Z'); # Out of hours
 
 use_ok 'FixMyStreet::Cobrand::Bexley';
@@ -147,7 +151,7 @@ FixMyStreet::override_config {
 
     subtest 'resend is disabled in admin' => sub {
         my $user = $mech->log_in_ok('super@example.org');
-        $user->update({ from_body => $body, is_superuser => 1 });
+        $user->update({ from_body => $body, is_superuser => 1, name => 'Staff User' });
         $mech->get_ok('/admin/report_edit/' . $report->id);
         $mech->content_contains('View report on site');
         $mech->content_lacks('Resend report');
@@ -202,6 +206,32 @@ FixMyStreet::override_config {
         ], 'Request had multiple photos';
     };
 
+    subtest 'anonymous update message' => sub {
+        my $report = FixMyStreet::DB->resultset("Problem")->first;
+        my $staffuser = $mech->create_user_ok('super@example.org');
+        $mech->create_comment_for_problem($report, $report->user, 'Commenter', 'Normal update', 't', 'confirmed', 'confirmed');
+        $mech->create_comment_for_problem($report, $staffuser, 'Staff user', 'Staff update', 'f', 'confirmed', 'confirmed');
+        $mech->get_ok('/report/' . $report->id);
+        $mech->content_contains('Posted by <strong>London Borough of Bexley</strong>');
+        $mech->content_contains('Posted anonymously by a non-staff user');
+    };
+
+    subtest 'test ID in confirmation email' => sub {
+        $mech->clear_emails_ok;
+        $mech->log_out_ok;
+        $mech->get_ok('/report/new?latitude=51.455555&longitude=0.153560');
+        $mech->submit_form_ok({ with_fields => {
+            title => 'Test ID',
+            detail => 'Test ID',
+            category => 'Lamp post',
+            name => 'Normal User',
+            username_register => 'normal@example.org',
+        } });
+        my $report = FixMyStreet::DB->resultset('Problem')->search(undef, { rows => 1, order_by => { -desc => 'id' } })->single;
+        my $id = $report->id;
+        my $text = $mech->get_text_body_from_email;
+        like $text, qr/The report's reference number is $id/;
+    };
 };
 
 subtest 'nearest road returns correct road' => sub {

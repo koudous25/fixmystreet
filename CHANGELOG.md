@@ -12,6 +12,7 @@
         - Add aerial maps option to Bing and OSM maps.
         - Select matches for both filter category and group. #3110
         - Add an extra zoom level to most map types. #3130
+        - Improve new report form when using phone verification.
     - Changes:
         - Mark user as active when sent an email alert.
     - Bugfixes:
@@ -32,6 +33,10 @@
         - Fix a few obscure asset layer changing issues.
         - Fix multiple disable messages for dropdown answers
         - Do not trigger duplicate check when checking stoppers
+        - Do not strip spaces from middle of Open311 category codes. #3167
+        - Show all category history even if category renamed.
+        - Fix email alert on initial update template.
+        - Do not cache the service worker
     - Admin improvements:
         - Display user name/email for contributed as reports. #2990
         - Interface for enabling anonymous reports for certain categories. #2989
@@ -40,6 +45,13 @@
         - Add full text index to speed up admin search.
         - Offline process for CSV generation.
         - Allow inspectors to change report asset.
+        - Staff users can use HTML tags in updates. #3143
+        - Response templates can include HTML tags. #3143
+        - Record whether report made on desktop or mobile.
+        - Do not display deleted priorities in inspect form. #3195
+        - Include extra fields in submit emails.
+        - can remove staff status from users in bulk
+        - super users can mark category names as hard coded
     - Development improvements:
         - `#geolocate_link` is now easier to re-style. #3006
         - Links inside `#front-main` can be customised using `$primary_link_*` Sass variables. #3007

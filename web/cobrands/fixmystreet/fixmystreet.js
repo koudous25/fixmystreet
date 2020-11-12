@@ -316,7 +316,11 @@ $.extend(fixmystreet.set_up, {
         errorElement: 'div',
         errorClass: 'form-error',
         errorPlacement: function( error, element ) {
-            element.before( error );
+            if (element.parent().hasClass('segmented-control')) {
+                element.parent().before( error );
+            } else {
+                element.before( error );
+            }
         },
         submitHandler: function(form) {
             if (form.submit_problem) {
@@ -655,6 +659,7 @@ $.extend(fixmystreet.set_up, {
         } else {
             fixmystreet.resize_to.desktop_page();
         }
+        $('#form_service').val(type);
         last_type = type;
     }).resize();
   },
@@ -1094,16 +1099,16 @@ $.extend(fixmystreet.set_up, {
     });
   },
 
-  reporting_hide_phone_email: function() {
-    $('#form_username_register').on('keyup change', function() {
-        var username = $(this).val();
-        if (/^[^a-z]+$/i.test(username)) {
-            $('#js-hide-if-username-phone').hide();
-            $('#js-hide-if-username-email').show();
-        } else {
-            $('#js-hide-if-username-phone').show();
-            $('#js-hide-if-username-email').hide();
-        }
+  reporting_required_phone_email: function() {
+    var fem = $('#form_email');
+    var fph = $('#form_phone');
+    $('#update_method_email').on('change', function() {
+      fem.prop('required', true);
+      fph.prop('required', false);
+    });
+    $('#update_method_phone').on('change', function() {
+      fem.prop('required', false);
+      fph.prop('required', true);
     });
   },
 
@@ -1299,6 +1304,11 @@ fixmystreet.update_councils_text = function(data) {
 // savePushState is set to false.
 fixmystreet.update_pin = function(lonlat, savePushState) {
     var lonlats = fixmystreet.maps.update_pin(lonlat);
+
+    if ($('body').hasClass('noise')) {
+        // Do nothing for noise map page
+        return;
+    }
 
     if (savePushState !== false) {
         if ('pushState' in history) {
@@ -1741,6 +1751,11 @@ $(function() {
         setup_func();
     });
 
+    // We only do popstate things on normal map pages, which set this variable
+    if (!fixmystreet.page || $('body').hasClass('noise')) {
+        return;
+    }
+
     // Have a fake history entry so we can cover all eventualities.
     if ('replaceState' in history) {
         history.replaceState({ initial: true }, null);
@@ -1756,11 +1771,6 @@ $(function() {
                 // Note: no pushState callbacks in these display_* calls,
                 // because we're already inside a popstate: We want to roll
                 // back to a previous state, not create a new one!
-
-                if (!fixmystreet.page) {
-                    // Only care about map pages, which set this variable
-                    return;
-                }
 
                 var location = window.history.location || window.location;
 

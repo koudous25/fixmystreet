@@ -151,8 +151,7 @@ sub category : Chained('body') : PathPart('') {
 
     my $history = $c->model('DB::ContactsHistory')->search(
         {
-            body_id => $c->stash->{body_id},
-            category => $c->stash->{contact}->category
+            contact_id => $c->stash->{contact}->id,
         },
         {
             order_by => ['contacts_history_id']
@@ -252,8 +251,12 @@ sub update_contact : Private {
     }
 
     my $email = $c->get_param('email');
-    $email =~ s/\s+//g;
     my $send_method = $c->get_param('send_method') || $contact->body->send_method || "";
+    if ($send_method eq 'Open311') {
+        $email =~ s/^\s+|\s+$//g;
+    } else {
+        $email =~ s/\s+//g;
+    }
     my $email_unchanged = $contact->email && $email && $contact->email eq $email;
     my $cobrand = $contact->body->get_cobrand_handler;
     my $cobrand_valid = $cobrand && $cobrand->call_hook(validate_contact_email => $email);
@@ -278,6 +281,13 @@ sub update_contact : Private {
             $contact->set_extra_metadata( $_ => 1 );
         } else {
             $contact->unset_extra_metadata($_);
+        }
+    }
+    if ( $c->user->is_superuser ) {
+        if ( $c->get_param('hardcoded') ) {
+            $contact->set_extra_metadata( hardcoded => 1 );
+        } else {
+            $contact->unset_extra_metadata('hardcoded');
         }
     }
     if ( my @group = $c->get_param_list('group') ) {

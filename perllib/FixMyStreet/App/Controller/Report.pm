@@ -413,7 +413,8 @@ sub inspect : Private {
     if ($c->cobrand->can('body')) {
         my $priorities_by_category = FixMyStreet::App->model('DB::ResponsePriority')->by_categories(
             $c->stash->{contacts},
-            body_id => $c->cobrand->body->id
+            body_id => $c->cobrand->body->id,
+            problem => $problem,
         );
         $c->stash->{priorities_by_category} = $priorities_by_category;
         my $templates_by_category = FixMyStreet::App->model('DB::ResponseTemplate')->by_categories(
@@ -466,7 +467,7 @@ sub inspect : Private {
                 }
             }
 
-            if ( $c->get_param('include_update') ) {
+            if ( $c->get_param('include_update') or $c->get_param('raise_defect') ) {
                 $update_text = Utils::cleanup_text( $c->get_param('public_update'), { allow_multiline => 1 } );
                 if (!$update_text) {
                     $valid = 0;
@@ -510,6 +511,14 @@ sub inspect : Private {
                     lang         => $problem->lang,
                 };
                 $c->user->create_alert($problem->id, $options);
+            }
+
+            # If the state has been changed to action scheduled and they've said
+            # they want to raise a defect, consider the report to be inspected.
+            if ($problem->state eq 'action scheduled' && $c->get_param('raise_defect') && !$problem->get_extra_metadata('inspected')) {
+                $update_params{extra} = { 'defect_raised' => 1 };
+                $problem->set_extra_metadata( inspected => 1 );
+                $c->forward( '/admin/log_edit', [ $problem->id, 'problem', 'inspected' ] );
             }
         }
 
@@ -676,9 +685,12 @@ sub _nearby_json :Private {
         ]
     } @$nearby;
 
+    my @extra_pins = $c->cobrand->call_hook('extra_nearby_pins', $params->{latitude}, $params->{longitude}, $dist);
+    @pins = (@pins, @extra_pins) if @extra_pins;
+
     my $list_html = $c->render_fragment(
         'report/nearby.html',
-        { reports => $nearby, inline_maps => $c->get_param("inline_maps") ? 1 : 0 }
+        { reports => $nearby, inline_maps => $c->get_param("inline_maps") ? 1 : 0, extra_pins => \@extra_pins }
     );
 
     my $json = { pins => \@pins };

@@ -44,9 +44,9 @@ sub geocoder_munge_results {
 sub admin_user_domain { "peterborough.gov.uk" }
 
 around open311_extra_data_include => sub {
-    my ($orig, $self, $row, $h, $extra) = @_;
+    my ($orig, $self, $row, $h) = @_;
 
-    my $open311_only = $self->$orig($row, $h, $extra);
+    my $open311_only = $self->$orig($row, $h);
     foreach (@$open311_only) {
         if ($_->{name} eq 'description') {
             my ($ref) = grep { $_->{name} =~ /pcc-Skanska-csc-ref/i } @{$row->get_extra_fields};
@@ -97,5 +97,27 @@ around 'open311_config' => sub {
     $params->{upload_files} = 1;
     $self->$orig($row, $h, $params);
 };
+
+sub dashboard_export_problems_add_columns {
+    my ($self, $csv) = @_;
+
+    $csv->add_csv_columns(
+        usrn => 'USRN',
+        nearest_address => 'Nearest address',
+    );
+
+    $csv->csv_extra_data(sub {
+        my $report = shift;
+
+        my $address = '';
+        $address = $report->geocode->{resourceSets}->[0]->{resources}->[0]->{name}
+            if $report->geocode;
+
+        return {
+            usrn => $report->get_extra_field_value('site_code'),
+            nearest_address => $address,
+        };
+    });
+}
 
 1;

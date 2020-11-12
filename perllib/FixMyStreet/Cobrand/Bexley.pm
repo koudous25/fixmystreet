@@ -85,7 +85,7 @@ sub open311_config {
 }
 
 sub open311_extra_data_include {
-    my ($self, $row, $h, $extra, $contact) = @_;
+    my ($self, $row, $h, $contact) = @_;
 
     my $open311_only;
     if ($contact->email =~ /^Confirm/) {
@@ -99,7 +99,7 @@ sub open311_extra_data_include {
 
         if (!$row->get_extra_field_value('site_code')) {
             if (my $ref = $self->lookup_site_code($row, 'NSG_REF')) {
-                push @$extra, { name => 'site_code', value => $ref, description => 'Site code' };
+                $row->update_extra_field({ name => 'site_code', value => $ref, description => 'Site code' });
             }
         }
     } elsif ($contact->email =~ /^Uniform/) {
@@ -108,7 +108,7 @@ sub open311_extra_data_include {
         # WFS service at the point we're sending the report over Open311.
         if (!$row->get_extra_field_value('uprn')) {
             if (my $ref = $self->lookup_site_code($row, 'UPRN')) {
-                push @$extra, { name => 'uprn', description => 'UPRN', value => $ref };
+                $row->update_extra_field({ name => 'uprn', description => 'UPRN', value => $ref });
             }
         }
     } else { # Symology
@@ -117,7 +117,7 @@ sub open311_extra_data_include {
         # WFS service at the point we're sending the report over Open311.
         if (!$row->get_extra_field_value('NSGRef')) {
             if (my $ref = $self->lookup_site_code($row, 'NSG_REF')) {
-                push @$extra, { name => 'NSGRef', description => 'NSG Ref', value => $ref };
+                $row->update_extra_field({ name => 'NSGRef', description => 'NSG Ref', value => $ref });
             }
         }
     }
@@ -198,9 +198,6 @@ sub open311_post_send {
 
     $self->open311_config($row, $h, {}, $contact); # Populate NSGRef again if needed
 
-    my $extra_data = join "; ", map { "$_->{description}: $_->{value}" } @{$row->get_extra_fields};
-    $h->{additional_information} = $extra_data;
-
     $sender->send($row, $h);
 }
 
@@ -219,6 +216,14 @@ sub _is_out_of_hours {
     return 1 if $time->wday == 1 || $time->wday == 7;
     return 1 if FixMyStreet::Cobrand::UK::is_public_holiday();
     return 0;
+}
+
+sub update_anonymous_message {
+    my ($self, $update) = @_;
+    my $t = Utils::prettify_dt( $update->confirmed );
+
+    my $staff = $update->user->from_body || $update->get_extra_metadata('is_body_user') || $update->get_extra_metadata('is_superuser');
+    return sprintf('Posted anonymously by a non-staff user at %s', $t) if !$staff;
 }
 
 1;

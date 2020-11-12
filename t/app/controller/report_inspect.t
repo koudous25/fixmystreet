@@ -17,6 +17,11 @@ my $rp2 = FixMyStreet::DB->resultset("ResponsePriority")->create({
     body => $oxon,
     name => 'Low Priority',
 });
+my $rp3 = FixMyStreet::DB->resultset("ResponsePriority")->create({
+    body => $oxon,
+    name => 'Deleted Priority',
+    deleted => 1,
+});
 FixMyStreet::DB->resultset("ContactResponsePriority")->create({
     contact => $contact,
     response_priority => $rp,
@@ -55,7 +60,6 @@ FixMyStreet::override_config {
         $mech->content_lacks('Save changes');
         $mech->content_lacks('Private');
         $mech->content_lacks('Priority');
-        $mech->content_lacks('Traffic management');
         $mech->content_lacks('Change asset');
         $mech->content_lacks('/admin/report_edit/'.$report_id.'">admin</a>)');
 
@@ -65,7 +69,6 @@ FixMyStreet::override_config {
         $mech->content_contains('Save changes');
         $mech->content_lacks('Change asset');
         $mech->content_lacks('Priority');
-        $mech->content_lacks('Traffic management');
         $mech->content_lacks('/admin/report_edit/'.$report_id.'">admin</a>)');
 
         $user->user_body_permissions->create({ body => $oxon, permission_type => 'report_edit_priority' });
@@ -74,7 +77,6 @@ FixMyStreet::override_config {
         $mech->content_contains('Save changes');
         $mech->content_contains('Priority');
         $mech->content_lacks('Change asset');
-        $mech->content_lacks('Traffic management');
         $mech->content_lacks('/admin/report_edit/'.$report_id.'">admin</a>)');
 
         $user->user_body_permissions->create({ body => $oxon, permission_type => 'report_inspect' });
@@ -82,7 +84,6 @@ FixMyStreet::override_config {
         $mech->content_contains('Save changes');
         $mech->content_contains('Private');
         $mech->content_contains('Priority');
-        $mech->content_contains('Traffic management');
         $mech->content_contains('Change asset');
         $mech->content_lacks('/admin/report_edit/'.$report_id.'">admin</a>)');
     };
@@ -205,14 +206,14 @@ FixMyStreet::override_config {
         $user->user_body_permissions->create({ body => $oxon, permission_type => 'report_inspect' });
 
         $mech->get_ok("/report/$report_id");
-        $mech->submit_form_ok({ button => 'save', with_fields => { traffic_information => 'Yes', state => 'Action scheduled', include_update => undef } });
+        $mech->submit_form_ok({ button => 'save', with_fields => { detailed_information => 'Info', state => 'Action scheduled', include_update => undef } });
         $report->discard_changes;
         my $alert = FixMyStreet::DB->resultset('Alert')->find(
             { user => $user, alert_type => 'new_updates', confirmed => 1, }
         );
 
         is $report->state, 'action scheduled', 'report state changed';
-        is $report->get_extra_metadata('traffic_information'), 'Yes', 'report data changed';
+        is $report->get_extra_metadata('detailed_information'), 'Info', 'report data changed';
         ok defined( $alert ) , 'sign up for alerts';
     };
 
@@ -241,7 +242,7 @@ FixMyStreet::override_config {
         $user->update;
     };
 
-    subtest "test update is required when instructing" => sub {
+    subtest "test public update is required if include_update is checked" => sub {
         $report->update;
         $report->comments->delete_all;
         $mech->get_ok("/report/$report_id");
@@ -447,6 +448,7 @@ FixMyStreet::override_config {
     subtest "default response priorities display correctly" => sub {
         $mech->get_ok("/report/$report_id");
         $mech->content_contains('Priority</label', 'report priority list present');
+        $mech->content_lacks('Deleted Priority');
         like $mech->content, qr/<select name="priority" id="problem_priority" class="form-control">[^<]*<option value="" selecte/s, 'blank priority option is selected';
         $mech->content_lacks('value="' . $rp->id . '" selected>High', 'non default priority not selected');
 
@@ -454,6 +456,12 @@ FixMyStreet::override_config {
         $mech->get_ok("/report/$report_id");
         unlike $mech->content, qr/<select name="priority" id="problem_priority" class="form-control">[^<]*<option value="" selecte/s, 'blank priority option not selected';
         $mech->content_contains('value="' . $rp->id . '" selected>High', 'default priority selected');
+    };
+
+    subtest "check when report has deleted priority" => sub {
+        $report->update({ response_priority => $rp3 });
+        $mech->get_ok("/report/$report_id");
+        $mech->content_contains('value="' . $rp3->id . '" selected>Deleted Priority');
     };
 
     foreach my $test (
@@ -691,15 +699,6 @@ FixMyStreet::override_config {
         return $perms;
     });
 
-    subtest "Oxfordshire-specific traffic management options are shown" => sub {
-        $report->update({ state => 'confirmed' });
-        $mech->get_ok("/report/$report_id");
-        $mech->submit_form_ok({ button => 'save', with_fields => { traffic_information => 'Signs and Cones', state => 'Action scheduled', include_update => undef } });
-        $report->discard_changes;
-        is $report->state, 'action scheduled', 'report state changed';
-        is $report->get_extra_metadata('traffic_information'), 'Signs and Cones', 'report data changed';
-    };
-
     subtest "admin link present on inspect page on cobrand" => sub {
         my $report_edit_permission = $user->user_body_permissions->create({
             body => $oxon, permission_type => 'report_edit' });
@@ -733,7 +732,6 @@ FixMyStreet::override_config {
           priority => $rp->id,
           include_update => '1',
           detailed_information => 'XXX164XXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-          traffic_information => '',
           photo1 => '',
           photo2 => '',
           photo3 => '',
@@ -900,6 +898,44 @@ FixMyStreet::override_config {
         $mech->content_lacks('shortlist');
         $contact2->unset_extra_metadata('assigned_users_only');
         $contact2->update;
+    };
+
+    subtest 'instruct defect' => sub {
+        $user->user_body_permissions->create({ body => $oxon, permission_type => 'report_instruct' });
+        $mech->get_ok("/report/$report2_id");
+        $mech->submit_form_ok({ button => 'save', with_fields => {
+            public_update => "This is a public update.", include_update => "1",
+            traffic_information => 'Signs and cones',
+            state => 'action scheduled', raise_defect => 1,
+            defect_item_category => 'Kerbing',
+        } });
+        $report2->discard_changes;
+        is $report2->get_extra_metadata('inspected'), 1, 'report marked as inspected';
+        $mech->get_ok("/report/$report2_id");
+        $mech->content_like(qr/Defect category<\/dt>\s*<dd>Kerbing/);
+        my $meta = $mech->extract_update_metas;
+        like $meta->[0], qr/State changed to: Action scheduled/, 'First update mentions action scheduled';
+        like $meta->[1], qr/Posted by .*defect raised/, 'Update mentions defect raised';
+        my $log_entry = $report2->inspection_log_entry;
+        is $log_entry->object_id, $report2_id, 'Log entry has correct ID';
+        is $log_entry->object_type, 'problem', 'Log entry has correct type';
+        is $log_entry->action, 'inspected', 'Log entry has correct action';
+    };
+
+    subtest "test update is required when instructing defect" => sub {
+        $report2->unset_extra_metadata('inspected');
+        $report2->update;
+        $report2->inspection_log_entry->delete;
+        $report2->comments->delete_all;
+        $mech->get_ok("/report/$report2_id");
+        $mech->submit_form_ok({ button => 'save', with_fields => {
+            public_update => "", include_update => "0",
+            state => 'action scheduled', raise_defect => 1,
+        } });
+        is_deeply $mech->page_errors, [ "Please provide a public update for this report." ], 'errors match';
+        $report2->discard_changes;
+        is $report2->comments->count, 0, "Update wasn't created";
+        is $report2->get_extra_metadata('inspected'), undef, 'report not marked as inspected';
     };
 };
 

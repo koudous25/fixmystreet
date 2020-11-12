@@ -11,6 +11,11 @@ body.fullwidthpage, body.twothirdswidthpage, body.authpage {
     float: left;
   }
 }
+body.waste #site-logo {
+    width: 334px;
+    height: 114px;
+    float: left;
+}
 
 body.mappage {
   .bromley-header {
@@ -164,4 +169,8 @@ footer,
       padding: 0 0 0 1em;
     }
   }
+}
+
+.bromley-waste-credits {
+  margin-bottom: 0;
 }

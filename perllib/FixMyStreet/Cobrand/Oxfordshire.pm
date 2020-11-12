@@ -4,6 +4,11 @@ use base 'FixMyStreet::Cobrand::UKCouncils';
 use strict;
 use warnings;
 
+use LWP::Simple;
+use URI;
+use Try::Tiny;
+use JSON::MaybeXS;
+
 sub council_area_id { return 2237; }
 sub council_area { return 'Oxfordshire'; }
 sub council_name { return 'Oxfordshire County Council'; }
@@ -123,7 +128,7 @@ sub open311_config {
 }
 
 sub open311_extra_data_include {
-    my ($self, $row, $h, $extra) = @_;
+    my ($self, $row, $h) = @_;
 
     return [
         { name => 'external_id', value => $row->id },
@@ -155,6 +160,48 @@ sub open311_post_send {
     $row->detail($self->{ox_original_detail});
 }
 
+sub open311_munge_update_params {
+    my ($self, $params, $comment, $body) = @_;
+
+    if ($comment->get_extra_metadata('defect_raised')) {
+        my $p = $comment->problem;
+        my ($e, $n) = $p->local_coords;
+        my $usrn = $p->get_extra_field_value('usrn');
+        if (!$usrn) {
+            my $cfg = {
+                url => 'https://tilma.mysociety.org/mapserver/oxfordshire',
+                typename => "OCCRoads",
+                srsname => 'urn:ogc:def:crs:EPSG::27700',
+                accept_feature => sub { 1 },
+                filter => "<Filter xmlns:gml=\"http://www.opengis.net/gml\"><DWithin><PropertyName>SHAPE_GEOMETRY</PropertyName><gml:Point><gml:coordinates>$e,$n</gml:coordinates></gml:Point><Distance units='m'>20</Distance></DWithin></Filter>",
+            };
+            my $features = $self->_fetch_features($cfg);
+            my $feature = $self->_nearest_feature($cfg, $e, $n, $features);
+            if ($feature) {
+                my $props = $feature->{properties};
+                $usrn = Utils::trim_text($props->{TYPE1_2_USRN});
+            }
+        }
+        $params->{'attribute[usrn]'} = $usrn;
+        $params->{'attribute[raise_defect]'} = 1;
+        $params->{'attribute[easting]'} = $e;
+        $params->{'attribute[northing]'} = $n;
+        my $details = $comment->user->email . ' ';
+        if (my $traffic = $p->get_extra_metadata('traffic_information')) {
+            $details .= 'TM1 ' if $traffic eq 'Signs and Cones';
+            $details .= 'TM2 ' if $traffic eq 'Stop and Go Boards';
+        }
+        (my $type = $p->get_extra_metadata('defect_item_type')) =~ s/ .*//;
+        $details .= $type eq 'Sweep' ? 'S&F' : $type;
+        $details .= ' ' . ($p->get_extra_metadata('detailed_information') || '');
+        $params->{'attribute[extra_details]'} = $details;
+
+        foreach (qw(defect_item_category defect_item_type defect_item_detail defect_location_description)) {
+            $params->{"attribute[$_]"} = $p->get_extra_metadata($_);
+        }
+    }
+}
+
 sub should_skip_sending_update {
     my ($self, $update ) = @_;
 
@@ -168,17 +215,19 @@ sub should_skip_sending_update {
     return 0;
 }
 
+
+sub report_inspect_update_extra {
+    my ( $self, $problem ) = @_;
+
+    foreach (qw(defect_item_category defect_item_type defect_item_detail defect_location_description)) {
+        my $value = $self->{c}->get_param($_);
+        $problem->set_extra_metadata($_ => $value) if $value;
+    }
+}
+
 sub on_map_default_status { return 'open'; }
 
 sub admin_user_domain { 'oxfordshire.gov.uk' }
-
-sub traffic_management_options {
-    return [
-        "Signs and Cones",
-        "Stop and Go Boards",
-        "High Speed Roads",
-    ];
-}
 
 sub admin_pages {
     my $self = shift;
@@ -238,6 +287,114 @@ sub dashboard_export_problems_add_columns {
             external_ref => ( $ref || '' ),
         };
     });
+}
+
+sub defect_wfs_query {
+    my ($self, $bbox) = @_;
+
+    my $filter = "
+    <ogc:Filter xmlns:ogc=\"http://www.opengis.net/ogc\">
+        <ogc:And>
+            <ogc:PropertyIsEqualTo matchCase=\"true\">
+                <ogc:PropertyName>APPROVAL_STATUS_NAME</ogc:PropertyName>
+                <ogc:Literal>With Contractor</ogc:Literal>
+            </ogc:PropertyIsEqualTo>
+            <ogc:BBOX>
+                <ogc:PropertyName>SHAPE_GEOMETRY</ogc:PropertyName>
+                <gml:Envelope xmlns:gml=\"http://www.opengis.net/gml\" srsName=\"$bbox->[4]\">
+                    <gml:lowerCorner>$bbox->[0] $bbox->[1]</gml:lowerCorner>
+                    <gml:upperCorner>$bbox->[2] $bbox->[3]</gml:upperCorner>
+                </gml:Envelope>
+            </ogc:BBOX>
+        </ogc:And>
+    </ogc:Filter>";
+    $filter =~ s/\n\s+//g;
+
+    my $uri = URI->new("https://tilma.mysociety.org/proxy/occ/nsg/");
+    $uri->query_form(
+        REQUEST => "GetFeature",
+        SERVICE => "WFS",
+        SRSNAME => "urn:ogc:def:crs:EPSG::4326",
+        TYPENAME => "WFS_DEFECTS_FOR_QUERYING",
+        VERSION => "1.1.0",
+        filter => $filter,
+        propertyName => 'ITEM_CATEGORY_NAME,ITEM_TYPE_NAME,REQUIRED_COMPLETION_DATE,SHAPE_GEOMETRY',
+        outputformat => "application/json"
+    );
+
+    try {
+        my $response = get($uri);
+        my $json = JSON->new->utf8->allow_nonref;
+        return $json->decode($response);
+    } catch {
+        # Ignore WFS errors.
+        return {};
+    };
+}
+
+# Get defects from WDM feed and display them on /around page.
+sub pins_from_wfs {
+    my ($self, $bbox) = @_;
+
+    my $wfs = $self->defect_wfs_query($bbox);
+
+    # Generate a negative fake ID so it doesn't clash with FMS report IDs.
+    my $fake_id = -1;
+    my @pins = map {
+        my $coords = $_->{geometry}->{coordinates};
+        my $props = $_->{properties};
+        my $category = $props->{ITEM_CATEGORY_NAME};
+        my $type = $props->{ITEM_TYPE_NAME};
+        my $category_type;
+        $category =~ s/\s+$//;
+        $type =~ s/\s+$//;
+        if ($category eq $type) {
+            $category_type = $category;
+        } else {
+            $category_type = "$category ($type)";
+        }
+        my $completion_date = DateTime::Format::W3CDTF->parse_datetime($props->{REQUIRED_COMPLETION_DATE})->strftime('%A %e %B %Y');
+        my $title = "$category_type\nCompletion date: $completion_date";
+        {
+            id => $fake_id--,
+            latitude => @$coords[1],
+            longitude => @$coords[0],
+            colour => 'defects',
+            title => $title,
+        };
+    } @{ $wfs->{features} };
+
+    return \@pins;
+}
+
+sub extra_nearby_pins {
+    my ($self, $latitude, $longitude, $dist) = @_;
+
+    my ($easting, $northing) = Utils::convert_latlon_to_en($latitude, $longitude);
+    my $bbox = [$easting-$dist, $northing-$dist, $easting+$dist, $northing+$dist, 'EPSG:27700'];
+
+    my $pins = $self->pins_from_wfs($bbox);
+
+    return map {
+        [ $_->{latitude}, $_->{longitude}, $_->{colour},
+          $_->{id}, $_->{title}, "normal", JSON->false
+        ]
+    } @$pins;
+}
+
+sub extra_around_pins {
+    my ($self, $bbox) = @_;
+
+    if (!defined($bbox)) {
+        return [];
+    }
+
+    my @box = split /,/, $bbox;
+    @box = (@box, 'EPSG:4326');
+
+    my $res = $self->pins_from_wfs(\@box);
+
+    return $res;
 }
 
 1;

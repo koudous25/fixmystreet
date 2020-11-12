@@ -6,8 +6,13 @@ use warnings;
 use utf8;
 use DateTime::Format::W3CDTF;
 use DateTime::Format::Flexible;
+use Integrations::Echo;
+use Sort::Key::Natural qw(natkeysort_inplace);
 use Try::Tiny;
 use FixMyStreet::DateRange;
+use FixMyStreet::WorkingDays;
+use Open311::GetServiceRequestUpdates;
+use Memcached;
 
 sub council_area_id { return 2482; }
 sub council_area { return 'Bromley'; }
@@ -172,10 +177,11 @@ sub open311_config {
 }
 
 sub open311_extra_data_include {
-    my ($self, $row, $h, $extra) = @_;
+    my ($self, $row, $h) = @_;
 
     my $title = $row->title;
 
+    my $extra = $row->get_extra_fields;
     foreach (@$extra) {
         next unless $_->{value};
         $title .= ' | ID: ' . $_->{value} if $_->{name} eq 'feature_id';
@@ -219,7 +225,7 @@ sub open311_config_updates {
     $params->{endpoints} = {
         service_request_updates => 'update.xml',
         update => 'update.xml'
-    };
+    } if $params->{endpoint} =~ /bromley.gov.uk/;
 }
 
 sub open311_pre_send {
@@ -375,5 +381,548 @@ sub munge_load_and_group_problems {
     }
 }
 
-1;
+# We want to send confirmation emails only for Waste reports
+sub report_sent_confirmation_email {
+    my ($self, $report) = @_;
+    my $contact = $report->contact or return;
+    return 'id' if grep { $_ eq 'Waste' } @{$report->contact->groups};
+    return '';
+}
 
+sub munge_around_category_where {
+    my ($self, $where) = @_;
+    $where->{extra} = [ undef, { -not_like => '%Waste%' } ];
+}
+
+sub munge_reports_category_list {
+    my ($self, $categories) = @_;
+    @$categories = grep { grep { $_ ne 'Waste' } @{$_->groups} } @$categories;
+}
+
+sub munge_report_new_contacts {
+    my ($self, $categories) = @_;
+
+    return if $self->{c}->action =~ /^waste/;
+
+    @$categories = grep { grep { $_ ne 'Waste' } @{$_->groups} } @$categories;
+    $self->SUPER::munge_report_new_contacts($categories);
+}
+
+sub updates_disallowed {
+    my $self = shift;
+    my ($problem) = @_;
+
+    # No updates on waste reports
+    return 'waste' if $problem->cobrand_data eq 'waste';
+
+    return $self->next::method(@_);
+}
+
+sub bin_addresses_for_postcode {
+    my $self = shift;
+    my $pc = shift;
+
+    my $echo = $self->feature('echo');
+    $echo = Integrations::Echo->new(%$echo);
+    my $points = $echo->FindPoints($pc);
+    my $data = [ map { {
+        value => $_->{SharedRef}{Value}{anyType},
+        label => FixMyStreet::Template::title($_->{Description}),
+    } } @$points ];
+    natkeysort_inplace { $_->{label} } @$data;
+    return $data;
+}
+
+sub look_up_property {
+    my $self = shift;
+    my $uprn = shift;
+
+    my $cfg = $self->feature('echo');
+    my $echo = Integrations::Echo->new(%$cfg);
+
+    if ($cfg->{max_per_day}) {
+        my $today = DateTime->today->set_time_zone(FixMyStreet->local_time_zone)->ymd;
+        my $ip = $self->{c}->req->address;
+        my $key = FixMyStreet->test_mode ? "bromley-test" : "bromley-$ip-$today";
+        my $count = Memcached::increment($key, 86400) || 0;
+        $self->{c}->detach('/page_error_403_access_denied', []) if $count > $cfg->{max_per_day};
+    }
+
+    my $result = $echo->GetPointAddress($uprn);
+    return {
+        id => $result->{Id},
+        uprn => $uprn,
+        address => FixMyStreet::Template::title($result->{Description}),
+        latitude => $result->{Coordinates}{GeoPoint}{Latitude},
+        longitude => $result->{Coordinates}{GeoPoint}{Longitude},
+    };
+}
+
+my %irregulars = ( 1 => 'st', 2 => 'nd', 3 => 'rd', 11 => 'th', 12 => 'th', 13 => 'th');
+sub ordinal {
+    my $n = shift;
+    $irregulars{$n % 100} || $irregulars{$n % 10} || 'th';
+}
+
+sub construct_bin_date {
+    my $str = shift;
+    return unless $str;
+    my $offset = ($str->{OffsetMinutes} || 0) * 60;
+    my $zone = DateTime::TimeZone->offset_as_string($offset);
+    my $date = DateTime::Format::W3CDTF->parse_datetime($str->{DateTime});
+    $date->set_time_zone($zone);
+    return $date;
+}
+
+sub image_for_service {
+    my ($self, $service_id) = @_;
+    my $base = '/cobrands/bromley/images/container-images';
+    my $images = {
+        531 => "$base/refuse-black-sack",
+        532 => "$base/refuse-black-sack",
+        533 => "$base/large-communal-black",
+        535 => "$base/kerbside-green-box-mix",
+        536 => "$base/small-communal-mix",
+        537 => "$base/kerbside-black-box-paper",
+        541 => "$base/small-communal-paper",
+        542 => "$base/food-green-caddy",
+        544 => "$base/food-communal",
+        545 => "$base/garden-waste-bin",
+    };
+    return $images->{$service_id};
+}
+
+sub bin_services_for_address {
+    my $self = shift;
+    my $property = shift;
+
+    my %service_name_override = (
+        531 => 'Non-Recyclable Refuse',
+        532 => 'Non-Recyclable Refuse',
+        533 => 'Non-Recyclable Refuse',
+        535 => 'Mixed Recycling (Cans, Plastics & Glass)',
+        536 => 'Mixed Recycling (Cans, Plastics & Glass)',
+        537 => 'Paper & Cardboard',
+        541 => 'Paper & Cardboard',
+        542 => 'Food Waste',
+        544 => 'Food Waste',
+        545 => 'Garden Waste',
+    );
+
+    $self->{c}->stash->{containers} = {
+        1 => 'Green Box (Plastic)',
+        2 => 'Wheeled Bin (Plastic)',
+        12 => 'Black Box (Paper)',
+        13 => 'Wheeled Bin (Paper)',
+        9 => 'Kitchen Caddy',
+        10 => 'Outside Food Waste Container',
+        45 => 'Wheeled Bin (Food)',
+    };
+    my %service_to_containers = (
+        535 => [ 1 ],
+        536 => [ 2 ],
+        537 => [ 12 ],
+        541 => [ 13 ],
+        542 => [ 9, 10 ],
+        544 => [ 45 ],
+    );
+    my %request_allowed = map { $_ => 1 } keys %service_to_containers;
+    my %quantity_max = (
+        535 => 6,
+        536 => 4,
+        537 => 6,
+        541 => 4,
+        542 => 6,
+        544 => 4,
+    );
+
+    my $echo = $self->feature('echo');
+    $echo = Integrations::Echo->new(%$echo);
+    my $result = $echo->GetServiceUnitsForObject($property->{uprn});
+    return [] unless @$result;
+
+    my $events = $echo->GetEventsForObject('PointAddress', $property->{id});
+    my $open = $self->_parse_open_events($events);
+
+    my @out;
+    my %task_ref_to_row;
+    foreach (@$result) {
+        next unless $_->{ServiceTasks};
+
+        my $servicetask = $_->{ServiceTasks}{ServiceTask};
+        my $schedules = _parse_schedules($servicetask);
+
+        next unless $schedules->{next} or $schedules->{last};
+
+        my $events = $echo->GetEventsForObject('ServiceUnit', $_->{Id});
+        my $open_unit = $self->_parse_open_events($events);
+
+        my $containers = $service_to_containers{$_->{ServiceId}};
+        my ($open_request) = grep { $_ } map { $open->{request}->{$_} } @$containers;
+        my $row = {
+            id => $_->{Id},
+            service_id => $_->{ServiceId},
+            service_name => $service_name_override{$_->{ServiceId}} || $_->{ServiceName},
+            report_open => $open->{missed}->{$_->{ServiceId}} || $open_unit->{missed}->{$_->{ServiceId}},
+            request_allowed => $request_allowed{$_->{ServiceId}},
+            request_open => $open_request,
+            request_containers => $containers,
+            request_max => $quantity_max{$_->{ServiceId}},
+            enquiry_open_events => $open->{enquiry},
+            service_task_id => $servicetask->{Id},
+            service_task_name => $servicetask->{TaskTypeName},
+            service_task_type_id => $servicetask->{TaskTypeId},
+            schedule => $servicetask->{ScheduleDescription},
+            last => $schedules->{last},
+            next => $schedules->{next},
+        };
+        if ($row->{last}) {
+            my $ref = join(',', @{$row->{last}{ref}});
+            $task_ref_to_row{$ref} = $row;
+        }
+        push @out, $row;
+    }
+    if (%task_ref_to_row) {
+        my $tasks = $echo->GetTasks(map { $_->{last}{ref} } values %task_ref_to_row);
+        my $now = DateTime->now->set_time_zone(FixMyStreet->local_time_zone);
+        foreach (@$tasks) {
+            my $ref = join(',', @{$_->{Ref}{Value}{anyType}});
+            my $completed = construct_bin_date($_->{CompletedDate});
+            my $state = $_->{State}{Name} || '';
+            my $task_type_id = $_->{TaskTypeId} || '';
+
+            my $resolution = $_->{Resolution}{Name} || '';
+            my $resolution_id = $_->{Resolution}{Ref}{Value}{anyType};
+            if ($resolution_id) {
+                my $template = FixMyStreet::DB->resultset('ResponseTemplate')->search({
+                    'me.body_id' => $self->body->id,
+                    'me.external_status_code' => [
+                        "$resolution_id,$task_type_id,$state",
+                        "$resolution_id,$task_type_id,",
+                        "$resolution_id,,$state",
+                        "$resolution_id,,",
+                        $resolution_id,
+                    ],
+                })->first;
+                $resolution = $template->text if $template;
+            }
+
+            my $row = $task_ref_to_row{$ref};
+            $row->{last}{state} = $state;
+            $row->{last}{completed} = $completed;
+            $row->{last}{resolution} = $resolution;
+            $row->{report_allowed} = within_working_days($row->{last}{date}, 2);
+
+            # Special handling if last instance is today
+            if ($row->{last}{date}->ymd eq $now->ymd) {
+                # If it's before 5pm and outstanding, show it as in progress
+                if ($state eq 'Outstanding' && $now->hour < 17) {
+                    $row->{next} = $row->{last};
+                    $row->{next}{state} = 'In progress';
+                    delete $row->{last};
+                }
+                if (!$completed && $now->hour < 17) {
+                    $row->{report_allowed} = 0;
+                }
+            }
+
+            # If the task is ended and could not be done, do not allow reporting
+            if ($state eq 'Not Completed' || ($state eq 'Completed' && $_->{Resolution}{Name} eq 'Excess Waste')) {
+                $row->{report_allowed} = 0;
+                $row->{report_locked_out} = 1;
+            }
+        }
+    }
+
+    return \@out;
+}
+
+sub _parse_open_events {
+    my $self = shift;
+    my $events = shift;
+    my $open;
+    foreach (@$events) {
+        next if $_->{ResolvedDate};
+        next if $_->{ResolutionCodeId} && $_->{ResolutionCodeId} != 584; # Out of Stock
+        my $event_type = $_->{EventTypeId};
+        my $service_id = $_->{ServiceId};
+        if ($event_type == 2104) { # Request
+            my $data = $_->{Data}{ExtensibleDatum};
+            my $container;
+            DATA: foreach (@$data) {
+                if ($_->{ChildData}) {
+                    foreach (@{$_->{ChildData}{ExtensibleDatum}}) {
+                        if ($_->{DatatypeName} eq 'Container Type') {
+                            $container = $_->{Value};
+                            last DATA;
+                        }
+                    }
+                }
+            }
+            my $report = $self->problems->search({ external_id => $_->{Guid} })->first;
+            $open->{request}->{$container} = $report ? { report => $report } : 1;
+        } elsif (2095 <= $event_type && $event_type <= 2103) { # Missed collection
+            my $report = $self->problems->search({ external_id => $_->{Guid} })->first;
+            $open->{missed}->{$service_id} = $report ? { report => $report } : 1;
+        } else { # General enquiry of some sort
+            $open->{enquiry}->{$event_type} = 1;
+        }
+    }
+    return $open;
+}
+
+sub _parse_schedules {
+    my $servicetask = shift;
+    my $schedules = $servicetask->{ServiceTaskSchedules}{ServiceTaskSchedule};
+    $schedules = [ $schedules ] unless ref $schedules eq 'ARRAY';
+
+    my $today = DateTime->now->set_time_zone(FixMyStreet->local_time_zone)->strftime("%F");
+    my ($min_next, $max_last, $next_changed);
+    foreach my $schedule (@$schedules) {
+        my $end_date = construct_bin_date($schedule->{EndDate})->strftime("%F");
+        next if $end_date lt $today;
+
+        my $next = $schedule->{NextInstance};
+        my $d = construct_bin_date($next->{CurrentScheduledDate});
+        if ($d && (!$min_next || $d < $min_next->{date})) {
+            $next_changed = $next->{CurrentScheduledDate}{DateTime} ne $next->{OriginalScheduledDate}{DateTime};
+            $min_next = {
+                date => $d,
+                ordinal => ordinal($d->day),
+                changed => $next_changed,
+            };
+        }
+
+        my $last = $schedule->{LastInstance};
+        $d = construct_bin_date($last->{CurrentScheduledDate});
+        # It is possible the last instance for this schedule has been rescheduled to
+        # be in the future. If so, we should treat it like it is a next instance.
+        if ($d && $d->strftime("%F") gt $today && (!$min_next || $d < $min_next->{date})) {
+            my $last_changed = $last->{CurrentScheduledDate}{DateTime} ne $last->{OriginalScheduledDate}{DateTime};
+            $min_next = {
+                date => $d,
+                ordinal => ordinal($d->day),
+                changed => $last_changed,
+            };
+        } elsif ($d && (!$max_last || $d > $max_last->{date})) {
+            my $last_changed = $last->{CurrentScheduledDate}{DateTime} ne $last->{OriginalScheduledDate}{DateTime};
+            $max_last = {
+                date => $d,
+                ordinal => ordinal($d->day),
+                changed => $last_changed,
+                ref => $last->{Ref}{Value}{anyType},
+            };
+        }
+    }
+
+    return {
+        next => $min_next,
+        last => $max_last,
+    };
+}
+
+sub bin_future_collections {
+    my $self = shift;
+
+    my $services = $self->{c}->stash->{service_data};
+    my @tasks;
+    my %names;
+    foreach (@$services) {
+        push @tasks, $_->{service_task_id};
+        $names{$_->{service_task_id}} = $_->{service_name};
+    }
+
+    my $echo = $self->feature('echo');
+    $echo = Integrations::Echo->new(%$echo);
+    my $result = $echo->GetServiceTaskInstances(@tasks);
+
+    my $events = [];
+    foreach (@$result) {
+        my $task_id = $_->{ServiceTaskRef}{Value}{anyType};
+        my $tasks = Integrations::Echo::force_arrayref($_->{Instances}, 'ScheduledTaskInfo');
+        foreach (@$tasks) {
+            my $dt = construct_bin_date($_->{CurrentScheduledDate});
+            my $summary = $names{$task_id} . ' collection';
+            my $desc = '';
+            push @$events, { date => $dt, summary => $summary, desc => $desc };
+        }
+    }
+    return $events;
+}
+
+=over
+
+=item within_working_days
+
+Given a DateTime object and a number, return true if today is less than or
+equal to that number of working days (excluding weekends and bank holidays)
+after the date.
+
+=cut
+
+sub within_working_days {
+    my ($dt, $days) = @_;
+    my $wd = FixMyStreet::WorkingDays->new(public_holidays => FixMyStreet::Cobrand::UK::public_holidays());
+    $dt = $wd->add_days($dt, $days)->ymd;
+    my $today = DateTime->now->set_time_zone(FixMyStreet->local_time_zone)->ymd;
+    return $today le $dt;
+}
+
+=item waste_fetch_events
+
+Loop through all open waste events to see if there have been any updates
+
+=back
+
+=cut
+
+sub waste_fetch_events {
+    my ($self, $verbose) = @_;
+
+    my $body = $self->body;
+    my @contacts = $body->contacts->search({
+        send_method => 'Open311',
+        endpoint => { '!=', '' },
+    })->all;
+    die "Could not find any devolved contacts\n" unless @contacts;
+
+    my %open311_conf = (
+        endpoint => $contacts[0]->endpoint || '',
+        api_key => $contacts[0]->api_key || '',
+        jurisdiction => $contacts[0]->jurisdiction || '',
+        extended_statuses => $body->send_extended_statuses,
+    );
+    my $cobrand = $body->get_cobrand_handler;
+    $cobrand->call_hook(open311_config_updates => \%open311_conf)
+        if $cobrand;
+    my $open311 = Open311->new(%open311_conf);
+
+    my $updates = Open311::GetServiceRequestUpdates->new(
+        current_open311 => $open311,
+        current_body => $body,
+        system_user => $body->comment_user,
+        suppress_alerts => 0,
+        blank_updates_permitted => $body->blank_updates_permitted,
+    );
+
+    my $echo = $self->feature('echo');
+    $echo = Integrations::Echo->new(%$echo);
+
+    my $cfg = {
+        verbose => $verbose,
+        updates => $updates,
+        echo => $echo,
+        event_types => {},
+    };
+
+    my $reports = $self->problems->search({
+        external_id => { '!=', '' },
+        state => [ FixMyStreet::DB::Result::Problem->open_states() ],
+        category => [ map { $_->category } @contacts ],
+    });
+
+    while (my $report = $reports->next) {
+        print 'Fetching data for report ' . $report->id . "\n" if $verbose;
+
+        my $event = $cfg->{echo}->GetEvent($report->external_id);
+        my $request = $self->construct_waste_open311_update($cfg, $event) or next;
+
+        next if !$request->{status} || $request->{status} eq 'confirmed'; # Still in initial state
+        next unless $self->waste_check_last_update(
+            $cfg, $report, $request->{status}, $request->{external_status_code});
+
+        my $last_updated = construct_bin_date($event->{LastUpdatedDate});
+        $request->{comment_time} = $last_updated;
+
+        print "  Updating report to state $request->{status}, $request->{description} ($request->{external_status_code})\n" if $cfg->{verbose};
+        $cfg->{updates}->process_update($request, $report);
+    }
+}
+
+sub construct_waste_open311_update {
+    my ($self, $cfg, $event) = @_;
+
+    my $event_type = $cfg->{event_types}{$event->{EventTypeId}} ||= $self->waste_get_event_type($cfg, $event->{EventTypeId});
+    my $state_id = $event->{EventStateId};
+    my $resolution_id = $event->{ResolutionCodeId} || '';
+    my $status = $event_type->{states}{$state_id}{state};
+    my $description = $event_type->{resolution}{$resolution_id} || $event_type->{states}{$state_id}{name};
+    return {
+        description => $description,
+        status => $status,
+        update_id => 'waste',
+        external_status_code => "$resolution_id,,",
+    };
+}
+
+sub waste_get_event_type {
+    my ($self, $cfg, $id) = @_;
+
+    my $event_type = $cfg->{echo}->GetEventType($id);
+
+    my $state_map = {
+        New => { New => 'confirmed' },
+        Pending => {
+            Unallocated => 'investigating',
+            'Allocated to Crew' => 'action scheduled',
+        },
+        Closed => {
+            Completed => 'fixed - council',
+            'Not Completed' => 'unable to fix',
+            Rejected => 'closed',
+        },
+    };
+
+    my $states = $event_type->{Workflow}->{States}->{State};
+    my $data;
+    foreach (@$states) {
+        my $core = $_->{CoreState}; # New/Pending/Closed
+        my $name = $_->{Name}; # New : Unallocated/Allocated to Crew : Completed/Not Completed/Rejected
+        $data->{states}{$_->{Id}} = {
+            core => $core,
+            name => $name,
+            state => $state_map->{$core}{$name},
+        };
+        my $codes = Integrations::Echo::force_arrayref($_->{ResolutionCodes}, 'StateResolutionCode');
+        foreach (@$codes) {
+            my $name = $_->{Name};
+            my $id = $_->{ResolutionCodeId};
+            $data->{resolution}{$id} = $name;
+        }
+    }
+    return $data;
+}
+
+# We only have the report's current state, no history, so must check current
+# against latest received update to see if state the same, and skip if so
+sub waste_check_last_update {
+    my ($self, $cfg, $report, $status, $resolution_id) = @_;
+
+    my $latest = $report->comments->search(
+        { external_id => 'waste', },
+        { order_by => { -desc => 'id' } }
+    )->first;
+
+    if ($latest) {
+        my $state = $cfg->{updates}->current_open311->map_state($status);
+        my $code = $latest->get_extra_metadata('external_status_code') || '';
+        if ($latest->problem_state eq $state && $code eq $resolution_id) {
+            print "  Latest update matches fetched state, skipping\n" if $cfg->{verbose};
+            return;
+        }
+    }
+    return 1;
+}
+
+sub admin_templates_external_status_code_hook {
+    my ($self) = @_;
+    my $c = $self->{c};
+
+    my $res_code = $c->get_param('resolution_code') || '';
+    my $task_type = $c->get_param('task_type') || '';
+    my $task_state = $c->get_param('task_state') || '';
+
+    return "$res_code,$task_type,$task_state";
+}
+
+1;
