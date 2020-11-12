@@ -246,12 +246,39 @@ sub validate_contact_email {
     return 1 if is_valid_email_list(join(",", @emails));
 }
 
-
 # We want to send confirmation emails only for Noise reports
 sub report_sent_confirmation_email {
     my ($self, $report) = @_;
     return 'id' if $report->cobrand_data eq 'noise';
     return '';
+}
+
+sub dashboard_export_problems_add_columns {
+    my ($self, $csv) = @_;
+
+    $csv->add_csv_columns(
+        nearest_address => 'Nearest address',
+        nearest_address_postcode => 'Nearest postcode',
+        extra_details => "Extra details",
+    );
+
+    $csv->csv_extra_data(sub {
+        my $report = shift;
+
+        my $address = '';
+        my $postcode = '';
+
+        if ( $report->geocode ) {
+            $address = $report->geocode->{resourceSets}->[0]->{resources}->[0]->{name};
+            $postcode = $report->geocode->{resourceSets}->[0]->{resources}->[0]->{address}->{postalCode};
+        }
+
+        return {
+            nearest_address => $address,
+            nearest_address_postcode => $postcode,
+            extra_details => $report->get_extra_metadata('detailed_information') || '',
+        };
+    });
 }
 
 1;
