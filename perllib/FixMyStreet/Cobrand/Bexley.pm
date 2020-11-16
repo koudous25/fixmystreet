@@ -51,8 +51,6 @@ sub munge_report_new_category_list {
     if ( $c->user && $c->user->from_body && $c->user->from_body->id == $self->body->id && $self->feature('staff_url') ) {
         for my $category ( keys %{ $self->feature('staff_url') } ) {
             my $urls = $self->feature('staff_url')->{$category};
-                    use Data::Printer;
-                    $c->log->debug(np  $urls);
             for my $extra ( @{ $extras->{$category} } ) {
                 if ($extra->{code} eq $urls->[0]) {
                     $extra->{description} =~ s#$urls->[1]#$urls->[2]#s;
