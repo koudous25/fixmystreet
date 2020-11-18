@@ -26,7 +26,6 @@ fixmystreet.assets.add(defaults, {
 });
 
 fixmystreet.assets.add(defaults, {
-    wfs_url: "https://tilma.staging.mysociety.org/mapserver/lincs",
     wfs_feature: "Public_Transport_Stops",
     asset_category: [ "Bus stop", "Bus shelter" ],
     asset_item: 'bus stop or shelter'

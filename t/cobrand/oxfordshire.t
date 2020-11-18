@@ -56,7 +56,7 @@ subtest 'check /around?ajax gets extra pins from wfs' => sub {
         my $pins = $json->{pins};
         is scalar @$pins, 2, 'defect pins included';
         my $pin = @$pins[0];
-        is @$pin[4], "Minor Carriageway (Pothole)\nCompletion date: Thursday  5 November 2020", 'pin title is correct';
+        is @$pin[4], "Minor Carriageway (Pothole)\nEstimated completion date: Thursday  5 November 2020", 'pin title is correct';
     }
 };
 
@@ -73,7 +73,7 @@ subtest 'check /around/nearby gets extra pins from wfs' => sub {
         my $pins = $json->{pins};
         is scalar @$pins, 2, 'defect pins included';
         my $pin = @$pins[0];
-        is @$pin[4], "Minor Carriageway (Pothole)\nCompletion date: Thursday  5 November 2020", 'pin title is correct';
+        is @$pin[4], "Minor Carriageway (Pothole)\nEstimated completion date: Thursday  5 November 2020", 'pin title is correct';
     }
 };
 
