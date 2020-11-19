@@ -27,9 +27,11 @@ describe('buckinghamshire cobrand', function() {
     cy.get('select:eq(4)').select('Flytipping');
     cy.wait('@around-ajax');
 
+    cy.get('.js-reporting-page--next:visible').click();
+    cy.get('.js-reporting-page--next:visible').click(); // No photo
     cy.get('[name=title]').type('Title');
     cy.get('[name=detail]').type('Detail');
-    cy.get('.js-new-report-user-show').click();
+    cy.get('.js-reporting-page--next:visible').click();
     cy.get('label[for=form_name]').should('contain', 'Full name');
   });
 
@@ -39,6 +41,8 @@ describe('buckinghamshire cobrand', function() {
     cy.get('#map_box').click(290, 307);
     cy.wait('@report-ajax');
     cy.get('select').eq(4).select('Snow and ice problem/winter salting');
+    cy.wait('@winter-routes');
+    cy.get('.js-reporting-page--next:visible').click();
     cy.contains('The road you have selected is on a regular gritting route').should('be.visible');
   });
 

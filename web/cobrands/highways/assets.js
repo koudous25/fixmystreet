@@ -126,8 +126,8 @@ function non_he_selected() {
 }
 
 function add_highways_warning(road_name) {
-  var $warning = $('<div class="box-warning" id="highways"><p>It looks like you clicked on the <strong>' + road_name + '</strong> which is managed by <strong>Highways England</strong>. ' +
-                   'Does your report concern something on this road, or somewhere else (e.g a road crossing it)?<p></div>');
+  var $warning = $('<div data-page-name="highwaysengland" class="js-reporting-page js-reporting-page--active"><div class="box-warning" id="highways"><p>It looks like you clicked on the <strong>' + road_name + '</strong> which is managed by <strong>Highways England</strong>. ' +
+                   'Does your report concern something on this road, or somewhere else (e.g a road crossing it)?<p></div></div>');
   var $radios = $('<p class="segmented-control segmented-control--radio"></p>');
 
     $('<input>')
@@ -154,7 +154,10 @@ function add_highways_warning(road_name) {
         .addClass('btn')
         .appendTo($radios);
     $radios.appendTo($warning);
-    $('.change_location').after($warning);
+    $warning.append('<button type="button" class="btn btn--block js-reporting-page--next">Continue</button>');
+
+    $('.js-reporting-page').first().before($warning);
+    $warning.nextAll('.js-reporting-page').removeClass('js-reporting-page--active');
     he_selected();
 }
 
