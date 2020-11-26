@@ -1,3 +1,13 @@
+[% IF bodyclass.match('mappage') %]
+    [% RETURN %]
+<div class="mob-only" style="color: #fff; background-color: #222; border-top: solid 0.25em #ffd000; position: relative;">
+    <div class="container">
+        <a id="site-logo" href="/"><span class="site-logo__fallback"></span></a>
+    </div>
+</div>
+    [% RETURN %]
+[% END %]
+
 <div class="mysoc-footer" role="contentinfo">
     <div class="container">
         <div class="row">
