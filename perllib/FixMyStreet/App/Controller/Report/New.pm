@@ -315,7 +315,28 @@ sub by_category_ajax_data : Private {
         $body->{councils_text} = $c->render_fragment( 'report/new/councils_text.html', $vars);
     }
 
+    if ($category) {
+        my @contacts = grep { $_->category eq $category } @{$c->stash->{contacts}};
+        my $hints = form_field_hints(@contacts);
+        $body->{title_hint} = $hints->{title} if $hints->{title};
+        $body->{detail_hint} = $hints->{detail} if $hints->{detail};
+    }
+
     return $body;
+}
+
+sub form_field_hints {
+    my @contacts = @_;
+    my $title_hint;
+    my $detail_hint;
+    foreach (@contacts) {
+        $title_hint ||= $_->get_extra_metadata('title_hint');
+        $detail_hint ||= $_->get_extra_metadata('detail_hint');
+    }
+    return {
+        title => $title_hint,
+        detail => $detail_hint,
+    };
 }
 
 sub disable_form_message : Private {
@@ -1642,6 +1663,7 @@ sub check_for_category : Private {
         if ($disable_form_messages->{all}) {
             $c->stash->{disable_form_message} = $disable_form_messages->{all};
         } elsif (my $questions = $disable_form_messages->{questions}) {
+            my $all_disable_qns_answered = 1;
             foreach my $question (@$questions) {
                 my $answer = $c->get_param($question->{code});
                 my $message = $question->{message};
@@ -1651,13 +1673,19 @@ sub check_for_category : Private {
                             $c->stash->{disable_form_message} = $message;
                         }
                     }
+                } else {
+                    $all_disable_qns_answered = 0;
                 }
             }
             if (!$c->stash->{disable_form_message}) {
-                $c->stash->{have_disable_qn_to_answer} = 1;
+                $c->stash->{have_disable_qn_to_answer} = !$all_disable_qns_answered;
             }
         }
     }
+
+    my $hints = form_field_hints(@contacts);
+    $c->stash->{contact_title_hint} = $hints->{title};
+    $c->stash->{contact_detail_hint} = $hints->{detail};
 
     if ($c->get_param('submit_category_part_only') || $c->stash->{disable_form_message}) {
         # If we've clicked the first-part category button (no-JS only probably),
