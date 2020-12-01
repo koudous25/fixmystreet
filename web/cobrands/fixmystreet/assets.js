@@ -1183,6 +1183,7 @@ fixmystreet.message_controller = (function() {
     // This hides the asset/road not found message
     function hide_responsibility_errors() {
         $("#js-roads-responsibility").addClass("hidden");
+        $(".js-responsibility-warning").addClass("hidden");
         $("#js-roads-responsibility .js-responsibility-message").addClass("hidden");
     }
 
@@ -1344,6 +1345,19 @@ fixmystreet.message_controller = (function() {
             } else if (is_only_body(layer.fixmystreet.body)) {
                 responsibility_on(layer.fixmystreet.no_asset_msg_id, layer.fixmystreet.asset_item, layer.fixmystreet.asset_type);
             }
+        },
+
+        show_responsibility_message: function(layer) {
+            var id = layer.fixmystreet.no_asset_msg_id;
+            disable_report_form();
+            hide_responsibility_errors();
+            if (!document.getElementById(stopperId)) {
+                $(id).removeClass("hidden");
+            }
+        },
+
+        hide_responsibility_message: function() {
+            responsibility_off();
         },
 
         register_category: function(params) {

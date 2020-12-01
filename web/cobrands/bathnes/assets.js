@@ -234,5 +234,52 @@ fixmystreet.assets.add(fixmystreet.maps.banes_defaults, {
     attribution: " © Crown Copyright. All rights reserved. 1000233344"
 });
 
+// List of categories which are Curo Group's responsibility
+var curo_categories = [
+    'Allotment issue',
+    'Overgrown public spaces & parks',
+    'Play area safety issue',
+    'Trees and woodland',
+    'Dead animals',
+    'Dog fouling',
+    'Excessive or dangerous littering',
+    'Household bins left out early or after collection day',
+    'Needles'
+];
+
+fixmystreet.assets.add(fixmystreet.maps.banes_defaults, {
+    http_options: {
+        params: {
+            TYPENAME: "Curo_Land_Registry"
+        }
+    },
+    asset_type: 'area',
+    stylemap: fixmystreet.assets.stylemap_invisible,
+    non_interactive: true,
+    always_visible: true,
+    all_categories: true, // Not really, but we deal with that in the found action handler.
+    road: true,
+    no_asset_msg_id: '#js-housing-association-restriction',
+    actions: {
+        found: function(layer) {
+            var category = $('select#form_category').val();
+            if (curo_categories.indexOf(category) === -1) {
+                fixmystreet.message_controller.hide_responsibility_message();
+                return;
+            }
+
+            var email = 'estates@curo-group.co.uk';
+            if (category === 'Household bins left out early or after collection day') {
+                email = 'tennancycompliance&support@curo-group.co.uk';
+            }
+            var email_string = $(layer.fixmystreet.no_asset_msg_id).find('.js-email');
+            if (email_string) {
+                email_string.html('<a href="mailto:' + email + '">' + email + '</a>');
+            }
+            fixmystreet.message_controller.show_responsibility_message(layer);
+        },
+        not_found: fixmystreet.message_controller.hide_responsibility_message,
+    }
+});
 
 })();
