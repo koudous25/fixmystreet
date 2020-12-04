@@ -49,7 +49,36 @@ FixMyStreet::override_config {
         is $c->param('service_code'), 'BRIDGES';
         is $c->param('attribute[area_code]'), 'Area1';
 
-        $mech->email_count_is(0);
+        $mech->email_count_is(1);
+        $report->discard_changes;
+        like $mech->get_text_body_from_email, qr/reference number is @{[$report->external_id]}/;
+    };
+
+    subtest 'External ID is shown on report page' => sub {
+        $mech->get_ok('/report/' . $report->id);
+        $mech->content_contains("Council ref:&nbsp;" . $report->external_id);
+    };
+
+    subtest "it doesn't show old reports on the cobrand" => sub {
+        $mech->create_problems_for_body(1, $body->id, 'An old problem made before Central Beds FMS launched', {
+            confirmed => '2018-12-25 09:00',
+            lastupdate => '2018-12-25 09:00',
+            latitude => 52.030692,
+            longitude => -0.357032
+        });
+
+        $mech->get_ok('/reports/Central+Bedfordshire');
+        $mech->content_lacks('An old problem made before Central Beds FMS launched');
+    };
+};
+
+subtest "it still shows old reports on fixmystreet.com" => sub {
+    FixMyStreet::override_config {
+        MAPIT_URL => 'http://mapit.uk/',
+        ALLOWED_COBRANDS => 'fixmystreet',
+    }, sub {
+        $mech->get_ok('/reports/Central+Bedfordshire');
+        $mech->content_contains('An old problem made before Central Beds FMS launched');
     };
 };
 
@@ -76,6 +105,17 @@ for my $cobrand ( "centralbedfordshire", "fixmystreet") {
         };
     };
 }
+
+subtest 'check geolocation overrides' => sub {
+    my $cobrand = FixMyStreet::Cobrand::CentralBedfordshire->new;
+    foreach my $test (
+        { query => 'Clifton', town => 'Bedfordshire' },
+        { query => 'Fairfield', town => 'Bedfordshire' },
+    ) {
+        my $res = $cobrand->disambiguate_location($test->{query});
+        is $res->{town}, $test->{town}, "Town matches $test->{town}";
+    }
+};
 
 
 done_testing();

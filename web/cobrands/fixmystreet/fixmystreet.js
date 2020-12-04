@@ -1659,6 +1659,7 @@ fixmystreet.display = {
             fixmystreet.set_up.form_section_previews();
             fixmystreet.set_up.fancybox_images();
             fixmystreet.set_up.dropzone($sideReport);
+            fixmystreet.set_up.toggle_visibility();
             $(fixmystreet).trigger('display:report');
 
             fixmystreet.update_report_a_problem_btn();
