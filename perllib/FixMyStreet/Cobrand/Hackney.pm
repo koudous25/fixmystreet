@@ -70,7 +70,7 @@ sub addresses_for_postcode {
 
     $url .= '?format=detailed&postcode=' . uri_escape_utf8($postcode);
     my $ua = LWP::UserAgent->new;
-    $ua->default_header(x_api_key => $key);
+    $ua->default_header(Authorization => $key);
 
     my $pages = 1;
     my @addresses;
