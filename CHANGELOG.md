@@ -23,6 +23,7 @@
         - Improve new report form when using phone verification. #3191
         - Send text alerts for report updates to only-phone-verified users.
         - Add options for user to set global notification preferences.
+        - Add option to set an emergency message on the homepage.
     - Changes:
         - Mark user as active when sent an email alert. #3045
     - Bugfixes:
