@@ -26,7 +26,7 @@ sub dispatch_request {
         if ($query->{postcode} eq 'L1 1JD') {
             my $response = {
                 data => {
-                    page_count => 1,
+                    pageCount => 1,
                     address => [ { locality => 'ELSEWHERE' } ]
                 }
             };
@@ -40,7 +40,7 @@ sub dispatch_request {
                         line1 => '12 SAINT STREET',
                         line2 => 'DALSTON',
                         line3 => 'HACKNEY',
-                        uprn => '100000111',
+                        UPRN => '100000111',
                         latitude => '51',
                         longitude => '1',
                     },
@@ -49,7 +49,7 @@ sub dispatch_request {
                         line1 => '1 ROAD ROAD',
                         line2 => '',
                         line3 => '',
-                        uprn => '100000222',
+                        UPRN => '100000222',
                         latitude => '52',
                         longitude => '2',
                     },
@@ -58,12 +58,12 @@ sub dispatch_request {
                         line1 => '24 HIGH STREET',
                         line2 => 'HACKNEY',
                         line3 => '',
-                        uprn => '100000333',
+                        UPRN => '100000333',
                         latitude => '53',
                         longitude => '3',
                     },
                 ],
-                page_count => 1,
+                pageCount => 1,
                 total_count => 4,
             },
             statusCode => 200,
