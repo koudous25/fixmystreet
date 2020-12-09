@@ -259,26 +259,32 @@ fixmystreet.assets.add(fixmystreet.maps.banes_defaults, {
     always_visible: true,
     all_categories: true, // Not really, but we deal with that in the found action handler.
     road: true,
-    no_asset_msg_id: '#js-housing-association-restriction',
+    no_asset_msg_id: '#js-curo-group-restriction',
     actions: {
         found: function(layer) {
             var category = $('select#form_category').val();
             if (curo_categories.indexOf(category) === -1) {
-                fixmystreet.message_controller.hide_responsibility_message();
+                fixmystreet.message_controller.road_found();
                 return;
             }
 
-            var email = 'estates@curo-group.co.uk';
+            fixmystreet.message_controller.road_not_found(layer);
+            $('#js-roads-responsibility > strong').hide();
+
+            var domain = '@curo-group.co.uk';
+            var email = 'estates';
             if (category === 'Household bins left out early or after collection day') {
-                email = 'tennancycompliance&support@curo-group.co.uk';
+                email = 'tennancycompliance&support';
             }
-            var email_string = $(layer.fixmystreet.no_asset_msg_id).find('.js-email');
+            var email_string = $(layer.fixmystreet.no_asset_msg_id).find('.js-roads-asset');
             if (email_string) {
-                email_string.html('<a href="mailto:' + email + '">' + email + '</a>');
+                email_string.html('<a href="mailto:' + email + domain + '">' + email + domain + '</a>');
             }
-            fixmystreet.message_controller.show_responsibility_message(layer);
         },
-        not_found: fixmystreet.message_controller.hide_responsibility_message,
+        not_found: function(layer) {
+            $('#js-roads-responsibility > strong').show();
+            fixmystreet.message_controller.road_found(layer);
+        }
     }
 });
 
