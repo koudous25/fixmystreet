@@ -78,7 +78,7 @@ sub addresses_for_postcode {
     for (my $page = 1; $page <= $pages; $page++) {
         my $res = $ua->get($url . '&page=' . $page);
         my $data = decode_json($res->decoded_content);
-        $pages = $data->{data}->{page_count} || 0;
+        $pages = $data->{data}->{pageCount} || 0;
         foreach my $address (@{$data->{data}->{address}}) {
             unless ($address->{locality} eq 'HACKNEY') {
                 $outside = 1;
@@ -91,7 +91,7 @@ sub addresses_for_postcode {
                 (1..3)
             );
             push @addresses, {
-                value => $address->{uprn},
+                value => $address->{UPRN},
                 latitude => $address->{latitude},
                 longitude => $address->{longitude},
                 label => $string,
