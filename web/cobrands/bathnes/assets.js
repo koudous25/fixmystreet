@@ -6,7 +6,8 @@ if (!fixmystreet.maps) {
 
 fixmystreet.maps.banes_defaults = {
     http_options: {
-        url: "https://isharemaps.bathnes.gov.uk/getows.ashx",
+        // Use tilma proxy for staging sites to avoid CORS issues.
+        url: fixmystreet.staging ? "https://tilma.mysociety.org/proxy/bathnes/isharemaps/" : "https://isharemaps.bathnes.gov.uk/getows.ashx",
         params: {
             mapsource: "BathNES/WFS",
             SERVICE: "WFS",
