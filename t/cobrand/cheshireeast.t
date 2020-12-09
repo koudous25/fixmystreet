@@ -109,10 +109,8 @@ FixMyStreet::override_config {
         my $expected_desc = 'Test Test 1 for ' . $body->id . " Detail\n\n(this report was made by <" . $staff_user->email . "> (" . $staff_user->name .") on behalf of the user)";
         (my $c_description = $c->param('attribute[description]')) =~ s/\r\n/\n/g;
         is $c_description, $expected_desc, 'Request had correct description attribute';
-
-        # This fails locally and I have no idea why - the strings look identical.
         ($c_description = $c->param('description')) =~ s/\r\n/\n/g;
-        is $c_description, "Test Test 1 for " . $body->id . " \n\n$expected_desc\n\nhttp://www.example.org/report/" . $report->id . "\n", 'Request had correct description';
+        is $c_description, "Test Test 1 for " . $body->id . "\n\n$expected_desc\n\nhttp://www.example.org/report/" . $report->id . "\n", 'Request had correct description';
 
         is_deeply [ $c->param('media_url') ], [
             'http://www.example.org/photo/' . $report->id . '.0.full.jpeg?74e33622',
