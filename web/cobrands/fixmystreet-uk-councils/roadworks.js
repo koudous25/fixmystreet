@@ -76,12 +76,11 @@ fixmystreet.roadworks.display_message = function(feature) {
     var $div = $(".js-reporting-page.js-roadworks-page");
     if (!$div.length || $div.data('workRef') !== attr.work_ref) {
         if (!$div.length) {
-            $div = $("<div class='js-reporting-page js-roadworks-page' data-page-name='roadworks'></div>");
+            $div = $("<div class='js-roadworks-page'></div>");
         }
         $div.data('workRef', attr.work_ref);
         $div.html($msg);
-        $div.append("<button class='btn btn--block btn--final js-reporting-page--next'>Continue</button>");
-        $('.js-reporting-page--active').after($div);
+        fixmystreet.pageController.addNextPage('roadworks', $div);
     }
 };
 

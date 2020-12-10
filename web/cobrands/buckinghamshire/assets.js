@@ -347,17 +347,16 @@ fixmystreet.assets.add(defaults, {
             if ($div.length) {
                 $div.removeClass('js-reporting-page--skip');
             } else {
-                var msg = "<div class='js-reporting-page box-warning js-gritting-notice' data-page-name='gritting'>" +
+                var msg = "<div class='box-warning js-gritting-notice'>" +
                             "<h1>Winter Gritting</h1>" +
                             "<p>The road you have selected is on a regular " +
                             "gritting route, and will be gritted according " +
                             "to the published " +
                             "<a href='https://www.buckscc.gov.uk/services/transport-and-roads/road-maintenance-and-repairs/winter-maintenance/'>" +
                             "policy</a>.</p>" +
-                            "<button class='btn btn--block btn--final js-reporting-page--next'>Continue</button>" +
                             "</div>";
                 $div = $(msg);
-                $('.js-reporting-page--active').after($div);
+                fixmystreet.pageController.addNextPage('gritting', $div);
             }
         },
         not_found: function() {
