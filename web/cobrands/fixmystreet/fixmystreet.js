@@ -250,6 +250,7 @@ fixmystreet.update_list_item_buttons = function($list) {
 
 fixmystreet.pageController = {
     toPage: function(page, opts) {
+        opts = opts || {};
         var $curr = $('.js-reporting-page--active');
         var $page;
         if (page === 'first') {
@@ -262,10 +263,10 @@ fixmystreet.pageController = {
                 } else {
                     // It is possible for multiple map 'page' divs to exist if
                     // multiple layers shown. We only need one of them
-                    $page = opts.current.nextAll('.js-reporting-page:not(.js-reporting-page--skip,.js-reporting-page--map)').first();
+                    $page = $curr.nextAll('.js-reporting-page:not(.js-reporting-page--skip,.js-reporting-page--map)').first();
                 }
             } else {
-                $page = opts.current.nextAll('.js-reporting-page:not(.js-reporting-page--skip)').first();
+                $page = $curr.nextAll('.js-reporting-page:not(.js-reporting-page--skip)').first();
             }
             page = $page.data('pageName');
         } else {
@@ -321,7 +322,7 @@ fixmystreet.pageController = {
                 });
             } else {
                 // Something later, e.g. asset selection, move to next step
-                fixmystreet.pageController.toPage('next', { current: $page });
+                fixmystreet.pageController.toPage('next');
             }
         });
     }
@@ -1055,8 +1056,7 @@ $.extend(fixmystreet.set_up, {
             v.focusInvalid();
             return;
         }
-        var $page = $(this).closest('.js-reporting-page');
-        fixmystreet.pageController.toPage('next', { current: $page });
+        fixmystreet.pageController.toPage('next');
     });
 
   },
