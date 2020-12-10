@@ -1607,13 +1607,6 @@ fixmystreet.display = {
         $('body').addClass('with-notes');
     }
 
-    // Otherwise if we go back to map 'page', scroll position
-    // isn't top of document and you can't see the map, sigh
-    // TODO still needed?
-      //if (history.scrollRestoration) {
-        //history.scrollRestoration = 'manual';
-    //}
-
     /* For some reason on IOS5 if you use the jQuery show method it
      * doesn't display the JS validation error messages unless you do this
      * or you cause a screen redraw by changing the phone orientation.
