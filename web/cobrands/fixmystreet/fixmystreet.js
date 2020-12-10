@@ -313,7 +313,8 @@ fixmystreet.pageController = {
         $('#mob_ok').click(function(e){
             e.preventDefault();
             var $page = $('.js-reporting-page--active');
-            if ($page.data('pageName') === 'category' || !$page.length) {
+            var first_page = $('.js-reporting-page').first().data('pageName');
+            if ($page.data('pageName') === first_page || !$page.length) {
                 // Either the original pin location, or the map 'page' was
                 // removed while we had it open, due to e.g. clicking the map
                 // in a totally different council. Show first step
