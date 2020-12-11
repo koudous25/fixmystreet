@@ -1201,8 +1201,8 @@ fixmystreet.message_controller = (function() {
             });
             return href;
         });
-        if ($('html').hasClass('mobile') && id === '#js-not-an-asset') {
-            var msg = $(id + ' p').html();
+        if ($('html').hasClass('mobile')) {
+            var msg = $(id).html();
             $div = $('<div class="js-mobile-not-an-asset"></div>').html(msg);
             $div.appendTo('#map_box');
         } else {
@@ -1236,7 +1236,7 @@ fixmystreet.message_controller = (function() {
     // This hides the reporting form, apart from the category selection
     // And perhaps the category_extras unless asked not to
     function disable_report_form(type) {
-        if ($('html').hasClass('mobile') && type === 'asset') {
+        if ($('html').hasClass('mobile') && type !== 'stopper') {
             $("#mob_ok, #toggle-fullscreen").addClass('hidden-js');
         } else {
             $('.js-reporting-page--next').prop('disabled', true);
@@ -1255,9 +1255,23 @@ fixmystreet.message_controller = (function() {
 
     // This disables the report form and (unless a stopper
     // message is shown) shows a responsibility message
-    function responsibility_on(layer_data, type, override_id) {
+    function responsibility_on(layer, type, override_id) {
+        var layer_data = layer.fixmystreet;
         var id = override_id || layer_data.no_asset_msg_id || '#js-not-an-asset';
         disable_report_form(type);
+        if (type === 'road') {
+            var $map_page = $('#' + layer.id + '_map');
+            if (!$map_page.length) {
+                $map_page = $('<div data-page-name="map" class="js-reporting-page js-reporting-page--map" id="' + layer.id + '_map"></div>');
+            }
+            // Move the map page depending on if we are basing its appearance on the
+            // answer to an extra question (so subcategories key is present) or not
+            if (this.fixmystreet.subcategories) {
+                $map_page.insertAfter('#js-post-category-messages');
+            } else {
+                $map_page.insertBefore('#js-post-category-messages');
+            }
+        }
         hide_responsibility_errors(id, layer_data);
         if (!document.getElementById(stopperId)) {
             show_responsibility_error(id, layer_data.asset_item, layer_data.asset_type);
@@ -1343,7 +1357,7 @@ fixmystreet.message_controller = (function() {
             if (!this.visibility) {
                 responsibility_off(this.fixmystreet);
             } else {
-                responsibility_on(this.fixmystreet, 'asset');
+                responsibility_on(this, 'asset');
             }
         },
 
@@ -1358,7 +1372,7 @@ fixmystreet.message_controller = (function() {
             } else {
                 fixmystreet.body_overrides.do_not_send(layer.fixmystreet.body);
                 if (is_only_body(layer.fixmystreet.body)) {
-                    responsibility_on(layer.fixmystreet, 'road', msg_id);
+                    responsibility_on(layer, 'road', msg_id);
                 }
             }
         },
@@ -1374,7 +1388,7 @@ fixmystreet.message_controller = (function() {
                 fixmystreet.body_overrides.allow_send(layer.fixmystreet.body);
                 responsibility_off(layer.fixmystreet);
             } else if (is_only_body(layer.fixmystreet.body)) {
-                responsibility_on(layer.fixmystreet, 'road');
+                responsibility_on(layer, 'road');
             }
         },
 
