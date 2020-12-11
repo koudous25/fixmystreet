@@ -45,9 +45,12 @@ describe('new report form', function() {
     cy.route('/streetmanager.php**', 'fixture:peterborough_roadworks.json').as('roadworks');
     cy.wait('@roadworks');
     cy.get('select:eq(4)').select('Pothole');
+    cy.get('.js-reporting-page--next:visible').click();
     cy.contains('Roadworks are scheduled near this location').should('be.visible');
     cy.contains('Parapet improvement').should('be.visible');
+    cy.go('back');
     cy.get('select:eq(4)').select('Fallen branch');
+    cy.get('.js-reporting-page--next:visible').click();
     cy.should('not.contain', 'Roadworks are scheduled near this location');
   });
 
