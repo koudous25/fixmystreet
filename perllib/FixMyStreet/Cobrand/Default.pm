@@ -97,7 +97,7 @@ Returns the minimum length a password can be set to.
 
 =cut
 
-sub password_minimum_length { 6 }
+sub password_minimum_length { 8 }
 
 =item country
 
@@ -714,7 +714,6 @@ sub admin_pages {
         $pages->{reports} = [ _('Reports'), 2 ];
         $pages->{report_edit} = [ undef, undef ];
         $pages->{update_edit} = [ undef, undef ];
-        $pages->{abuse_edit} = [ undef, undef ];
     }
     if ( $user->has_body_permission_to('template_edit') ) {
         $pages->{templates} = [ _('Templates'), 3 ];
