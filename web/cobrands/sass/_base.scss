@@ -1907,6 +1907,7 @@ html.js #map .noscript {
     position: absolute;
     bottom: 3em;
     #{$left}: 0.25em;
+    #{$right}: 0.25em;
     padding: 0.25em;
     color: #fff;
     background-color: black;
