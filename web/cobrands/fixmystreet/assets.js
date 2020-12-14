@@ -1219,9 +1219,7 @@ fixmystreet.message_controller = (function() {
         } else {
             $(id).addClass("hidden");
         }
-        if (id === '#js-not-an-asset') {
-            $('.js-mobile-not-an-asset').remove();
-        }
+        $('.js-mobile-not-an-asset').remove();
         if (!$("#js-roads-responsibility .js-responsibility-message:not(.hidden)").length) {
             $("#js-roads-responsibility").addClass("hidden");
         }
