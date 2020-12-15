@@ -282,6 +282,9 @@ fixmystreet.pageController = {
 
         if ($page.data('pageName') === 'map' || opts.forceMapShow) {
             // We're going to bypass to the map for the next step, then come back here
+            setTimeout(function() {
+                $('html, body').scrollTop(0);
+            }, 0);
             $('#map_box').removeClass('hidden-js');
             $('html').addClass('only-map');
         } else {
