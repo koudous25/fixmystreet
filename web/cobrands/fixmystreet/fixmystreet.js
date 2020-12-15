@@ -330,6 +330,19 @@ fixmystreet.pageController = {
             }
         });
     },
+    addMapPage: function(layer) {
+        var $map_page = $('#' + layer.id + '_map');
+        if (!$map_page.length) {
+            $map_page = $('<div data-page-name="map" class="js-reporting-page js-reporting-page--map" id="' + layer.id + '_map"></div>');
+        }
+        // Move the map page depending on if we are basing its appearance on the
+        // answer to an extra question (so subcategories key is present) or not
+        if (layer.fixmystreet.subcategories) {
+            $map_page.insertAfter('#js-post-category-messages');
+        } else {
+            $map_page.insertBefore('#js-post-category-messages');
+        }
+    },
     addNextPage: function(name, $div) {
         $div.addClass('js-reporting-page');
         $div.attr('data-page-name', name);

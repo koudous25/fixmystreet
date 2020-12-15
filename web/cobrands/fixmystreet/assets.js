@@ -463,17 +463,7 @@ function check_zoom_message_visibility() {
         $p.prop('id', id);
 
         if (this.getVisibility() && $('html').hasClass('mobile')) {
-            var $map_page = $('#' + this.id + '_map');
-            if (!$map_page.length) {
-                $map_page = $('<div data-page-name="map" class="js-reporting-page js-reporting-page--map" id="' + this.id + '_map"></div>');
-            }
-            // Move the map page depending on if we are basing its appearance on the
-            // answer to an extra question (so subcategories key is present) or not
-            if (this.fixmystreet.subcategories) {
-                $map_page.insertAfter('#js-post-category-messages');
-            } else {
-                $map_page.insertBefore('#js-post-category-messages');
-            }
+            fixmystreet.pageController.addMapPage(this);
         }
 
         if (this.getVisibility() && this.inRange) {
@@ -1258,17 +1248,7 @@ fixmystreet.message_controller = (function() {
         var id = override_id || layer_data.no_asset_msg_id || '#js-not-an-asset';
         disable_report_form(type);
         if (type === 'road') {
-            var $map_page = $('#' + layer.id + '_map');
-            if (!$map_page.length) {
-                $map_page = $('<div data-page-name="map" class="js-reporting-page js-reporting-page--map" id="' + layer.id + '_map"></div>');
-            }
-            // Move the map page depending on if we are basing its appearance on the
-            // answer to an extra question (so subcategories key is present) or not
-            if (this.fixmystreet.subcategories) {
-                $map_page.insertAfter('#js-post-category-messages');
-            } else {
-                $map_page.insertBefore('#js-post-category-messages');
-            }
+            fixmystreet.pageController.addMapPage(layer);
         }
         hide_responsibility_errors(id, layer_data);
         if (!document.getElementById(stopperId)) {
