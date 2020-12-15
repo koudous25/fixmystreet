@@ -19,6 +19,8 @@ describe('buckinghamshire cobrand', function() {
     cy.wait('@report-ajax');
     cy.get('select:eq(4)').select('Parks');
     cy.get('[name=site_code]').should('have.value', '7300268');
+    cy.get('.js-reporting-page--next:visible').click();
+    cy.contains('Photo').should('be.visible');
   });
 
   it('uses the label "Full name" for the name field', function() {
